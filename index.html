@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Warehouse Parcel Inspection</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- SheetJS (Excel Parsing) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Navigation Bar -->
+        <nav class="glass-nav">
+            <div class="nav-content">
+                <div class="brand">
+                    <i data-lucide="package-search"></i>
+                    <span>ParcelInspect</span>
+                </div>
+                <div class="nav-actions">
+                    <div class="role-switcher">
+                        <button class="role-btn active" data-role="inspector">Inspector</button>
+                        <button class="role-btn" data-role="manager">Manager</button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main id="main-content">
+            <!-- Dynamic Content will be injected here -->
+            <div class="loading-state">
+                <div class="spinner"></div>
+                Initializing Application...
+            </div>
+        </main>
+    </div>
+
+    <!-- Application Logic -->
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
