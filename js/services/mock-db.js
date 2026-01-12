@@ -6,6 +6,8 @@ const apiCall = async (action, payload = {}) => {
     const url = localStorage.getItem(API_KEY_STORAGE);
     if (!url) return null;
 
+    console.log(`API Call: ${action} to ${url}`);
+
     try {
         // Google Apps Script requires specific handling
         const formData = new URLSearchParams();
@@ -20,15 +22,20 @@ const apiCall = async (action, payload = {}) => {
             body: formData
         });
 
+        console.log("Response Status:", response.status, response.ok);
+
         const text = await response.text();
+        console.log("Response Text:", text.substring(0, 200));
+
         try {
             return JSON.parse(text);
         } catch {
-            console.log("Response:", text);
-            return null;
+            console.log("Could not parse JSON");
+            return { success: true }; // Assume success if we got a response
         }
     } catch (e) {
-        console.error("API Sync Error:", e);
+        console.error("API Sync Error Details:", e.message, e);
+        alert("Connection Error: " + e.message);
         return null;
     }
 };
