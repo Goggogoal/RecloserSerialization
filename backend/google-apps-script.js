@@ -17,8 +17,26 @@ function handleRequest(e) {
     lock.tryLock(10000);
 
     try {
-        const action = e.parameter.action || (e.postData && JSON.parse(e.postData.contents).action);
-        const data = e.postData ? JSON.parse(e.postData.contents) : {};
+        // Parse payload from form data or direct JSON
+        let data = {};
+        if (e.parameter && e.parameter.payload) {
+            data = JSON.parse(e.parameter.payload);
+        } else if (e.postData && e.postData.contents) {
+            try {
+                data = JSON.parse(e.postData.contents);
+            } catch (err) {
+                // Try to parse as form data
+                const params = e.postData.contents.split('&');
+                for (const param of params) {
+                    const [key, value] = param.split('=');
+                    if (key === 'payload') {
+                        data = JSON.parse(decodeURIComponent(value));
+                        break;
+                    }
+                }
+            }
+        }
+        const action = data.action || e.parameter.action;
 
         if (action === 'getParcels') {
             return responseJSON(getAllParcels());

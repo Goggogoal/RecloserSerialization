@@ -1,18 +1,32 @@
 const STORAGE_KEY = 'parcel_app_db_v1';
 const API_KEY_STORAGE = 'parcel_app_api_url';
 
-// Helper for API Calls
+// Helper for API Calls - Google Apps Script compatible
 const apiCall = async (action, payload = {}) => {
     const url = localStorage.getItem(API_KEY_STORAGE);
     if (!url) return null;
 
     try {
+        // Google Apps Script requires specific handling
+        const formData = new URLSearchParams();
+        formData.append('payload', JSON.stringify({ action, ...payload }));
+
         const response = await fetch(url, {
-            method: 'POST', // Apps Script handles POST well for everything to avoid caching
-            body: JSON.stringify({ action, ...payload })
+            method: 'POST',
+            redirect: 'follow', // Important for Apps Script redirects
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: formData
         });
-        const json = await response.json();
-        return json;
+
+        const text = await response.text();
+        try {
+            return JSON.parse(text);
+        } catch {
+            console.log("Response:", text);
+            return null;
+        }
     } catch (e) {
         console.error("API Sync Error:", e);
         return null;
