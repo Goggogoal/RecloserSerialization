@@ -39,6 +39,9 @@ export const renderDashboard = (container) => {
                     <i data-lucide="file-spreadsheet" style="vertical-align: middle; margin-right: 8px;"></i>
                     Import
                 </button>
+                 <button class="btn btn-primary" id="settings-btn" style="background: rgba(255,255,255,0.1); color: var(--text-main);">
+                    <i data-lucide="settings" style="vertical-align: middle;"></i>
+                </button>
                 <button class="btn btn-danger" id="clear-data-btn" style="background: var(--danger); color: white;">
                     <i data-lucide="trash-2" style="vertical-align: middle;"></i>
                 </button>
@@ -117,6 +120,25 @@ export const renderDashboard = (container) => {
         clearBtn.addEventListener('click', () => {
             if (confirm('Are you sure you want to CLEAR ALL DATA? This cannot be undone.')) {
                 db.clearData();
+            }
+        });
+    }
+    // Settings Handler
+    const settingsBtn = container.querySelector('#settings-btn');
+    if (settingsBtn) {
+        settingsBtn.addEventListener('click', () => {
+            const currentUrl = db.getApiUrl() || '';
+            const newUrl = prompt("Enter Google Apps Script API URL to Sync Data:", currentUrl);
+            if (newUrl !== null) {
+                const cleanUrl = newUrl.trim();
+                db.setApiUrl(cleanUrl).then((success) => {
+                    if (success) {
+                        alert("Connected! Data synced from Cloud.");
+                        location.reload();
+                    } else if (cleanUrl) {
+                        alert("Could not connect. Check URL.");
+                    }
+                });
             }
         });
     }

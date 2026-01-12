@@ -1,4 +1,23 @@
 const STORAGE_KEY = 'parcel_app_db_v1';
+const API_KEY_STORAGE = 'parcel_app_api_url';
+
+// Helper for API Calls
+const apiCall = async (action, payload = {}) => {
+    const url = localStorage.getItem(API_KEY_STORAGE);
+    if (!url) return null;
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST', // Apps Script handles POST well for everything to avoid caching
+            body: JSON.stringify({ action, ...payload })
+        });
+        const json = await response.json();
+        return json;
+    } catch (e) {
+        console.error("API Sync Error:", e);
+        return null;
+    }
+};
 
 export const initMockData = () => {
     if (!localStorage.getItem(STORAGE_KEY)) {
@@ -16,6 +35,13 @@ export const initMockData = () => {
         saveData({ warehouses, meta });
         console.log('Initialized Mock Data for 34 Warehouses + Enums');
     }
+
+    // Auto-Sync on load if online
+    if (localStorage.getItem(API_KEY_STORAGE)) {
+        db.syncFromCloud().then(res => {
+            if (res) console.log("Synced from Cloud on Init");
+        });
+    }
 };
 
 const getData = () => {
@@ -27,6 +53,30 @@ const saveData = (data) => {
 };
 
 export const db = {
+    setApiUrl: async (url) => {
+        localStorage.setItem(API_KEY_STORAGE, url);
+        return await db.syncFromCloud(); // Initial pull
+    },
+
+    getApiUrl: () => {
+        return localStorage.getItem(API_KEY_STORAGE);
+    },
+
+    // Sync: Cloud -> Local (Replace Local)
+    syncFromCloud: async () => {
+        const result = await apiCall('getParcels');
+        if (result && result.warehouses) {
+            // Merge or Replace? Replace is safer for "Source of Truth"
+            // But we need to keep meta/enums if server doesn't send them.
+            // Server currently sends { warehouses }.
+            const localData = getData();
+            localData.warehouses = result.warehouses;
+            saveData(localData);
+            return true;
+        }
+        return false;
+    },
+
     getWarehouses: () => {
         return getData().warehouses;
     },
@@ -37,38 +87,53 @@ export const db = {
 
     // New Method for Bulk Updates
     updateWarehouses: (warehouses) => {
-        saveData({ warehouses });
+        saveData({ ...getData(), warehouses });
+        // We probably don't push full bulk to API yet, as API is optimized for single parcel save.
+        // For import, valid to just loop and save? Or add 'bulkSave' to API.
+        // For now, let's just keep it local-first for Import.
+        alert("Bulk import saved locally. Cloud sync for bulk not fully implemented in this v1.");
     },
 
-    clearData: () => {
+    clearData: async () => {
+        if (confirm('Clear Cloud Data too?')) {
+            await apiCall('clearData');
+        }
         localStorage.removeItem(STORAGE_KEY);
-        // initMockData will run on next load or we can run it now
-        // Let's just remove it and let the app cycle
         location.reload();
     },
 
-    saveParcel: (warehouseId, parcelData) => {
+    saveParcel: async (warehouseId, parcelData) => {
         const data = getData();
-        const start = Date.now();
         const whIndex = data.warehouses.findIndex(w => w.id === warehouseId);
-
         if (whIndex === -1) return false;
-
-        // Check if parcel exists (update) or new
-        // For simplicity, we'll append for now or update by ID if we add IDs
-        // Assuming parcelData comes with an ID if it's an edit
 
         const existingParcelIndex = data.warehouses[whIndex].parcels.findIndex(p => p.id === parcelData.id);
 
         if (existingParcelIndex >= 0) {
             data.warehouses[whIndex].parcels[existingParcelIndex] = { ...data.warehouses[whIndex].parcels[existingParcelIndex], ...parcelData };
         } else {
-            parcelData.id = `p-${Date.now()}`;
+            parcelData.id = parcelData.id || `p-${Date.now()}`;
             parcelData.timestamp = new Date().toISOString();
             data.warehouses[whIndex].parcels.push(parcelData);
         }
 
         saveData(data);
+
+        // Async Sync to Cloud
+        if (db.getApiUrl()) {
+            console.log("Syncing to Cloud...");
+            const res = await apiCall('saveParcel', { parcel: parcelData, warehouseId });
+            if (res && res.success && res.parcel && res.parcel.photo.startsWith('http')) {
+                // Update local with the Cloud URL for the image
+                const newData = getData(); // Refetch in case changed
+                const pIndex = newData.warehouses[whIndex].parcels.findIndex(p => p.id === parcelData.id);
+                if (pIndex >= 0) {
+                    newData.warehouses[whIndex].parcels[pIndex].photo = res.parcel.photo;
+                    saveData(newData);
+                    console.log("Image URL updated from Cloud");
+                }
+            }
+        }
         return true;
     },
 
@@ -82,7 +147,7 @@ export const db = {
         const data = getData();
         if (!data.meta) data.meta = { brands: [], models: [] };
 
-        const list = data.meta[type]; // 'brands' or 'models'
+        const list = data.meta[type];
         if (list && !list.includes(value)) {
             list.push(value);
             saveData(data);
