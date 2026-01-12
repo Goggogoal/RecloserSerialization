@@ -62,8 +62,29 @@ function handleRequest(e) {
 
 // --- Logic ---
 
+// Get or Create the Database Spreadsheet
+function getDbSpreadsheet() {
+    const props = PropertiesService.getScriptProperties();
+    let ssId = props.getProperty('DB_SPREADSHEET_ID');
+
+    if (ssId) {
+        try {
+            return SpreadsheetApp.openById(ssId);
+        } catch (e) {
+            // Spreadsheet was deleted, create new one
+            ssId = null;
+        }
+    }
+
+    // Create new spreadsheet
+    const ss = SpreadsheetApp.create('Warehouse_App_Database');
+    props.setProperty('DB_SPREADSHEET_ID', ss.getId());
+    console.log('Created new database spreadsheet: ' + ss.getUrl());
+    return ss;
+}
+
 function getDbSheet() {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = getDbSpreadsheet();
     let sheet = ss.getSheetByName('DB_Parcels');
     if (!sheet) {
         sheet = ss.insertSheet('DB_Parcels');
