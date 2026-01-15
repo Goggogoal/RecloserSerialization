@@ -92,8 +92,12 @@ function getDbSheet() {
     let sheet = ss.getSheetByName('DB_Parcels');
     if (!sheet) {
         sheet = ss.insertSheet('DB_Parcels');
-        // Headers: "ID", "WarehouseID", "DataJSON", "LastUpdated"
-        sheet.appendRow(['ID', 'WarehouseID', 'DataJSON', 'LastUpdated']);
+        // Headers
+        const headers = [
+            'ID', 'WarehouseID', 'Type', 'Serial', 'PEA', 'Brand', 'Model',
+            'Remarks', 'Inspector', 'Tel', 'Photo', 'PEA Photo', 'Status', 'LastUpdated', 'DataJSON'
+        ];
+        sheet.appendRow(headers);
     }
     return sheet;
 }
@@ -192,13 +196,6 @@ function saveParcel(parcel, warehouseId) {
 
 function saveParcels(items) {
     // items = [{ parcel: {}, warehouseId: 'wh-1' }, ...]
-    // Optimization: Read all rows once, then append/update in batches?
-    // For simplicity/reliability in v1, let's reuse saveParcel but carefully.
-    // Ideally, we prepare a big array for appendRow to minimize I/O.
-
-    // For now, let's just loop. It might be slow 500 items -> 500 secs if naive.
-    // Apps Script is slow with individual calls. We MUST batch.
-
     const sheet = getDbSheet();
     const rows = sheet.getDataRange().getValues();
     const existingIds = new Map();
@@ -211,12 +208,27 @@ function saveParcels(items) {
         const p = item.parcel;
         const wid = item.warehouseId;
 
-        // Skip image upload for bulk import if empty/null to save time?
-        // Excel import usually has no photos. 
-        // If it DOES, we can't batch easily. Assume no photos for Bulk Excel Import.
-
         const jsonStr = JSON.stringify(p);
-        const rowData = [p.id, wid, jsonStr, new Date()];
+
+        // Schema: 
+        // [ID, WarehouseID, Type, Serial, PEA, Brand, Model, Remarks, Inspector, Tel, Photo, PEA Photo, Status, LastUpdated, DataJSON]
+        const rowData = [
+            p.id,
+            wid,
+            p.type || '',
+            p.serial || '',
+            p.peaNo || '',
+            p.brand || '',
+            p.model || '',
+            p.remarks || '',
+            p.inspectorName || '',
+            p.inspectorTel || '',
+            p.photo || '',
+            p.peaPhoto || '',
+            p.status || 'pending',
+            new Date(),
+            jsonStr
+        ];
 
         if (existingIds.has(p.id)) {
             updates.push({ r: existingIds.get(p.id), val: rowData });
@@ -225,16 +237,15 @@ function saveParcels(items) {
         }
     });
 
-    // Process Updates (One by one unfortunately unless contiguous, but usually import is NEW data)
+    // Process Updates
     updates.forEach(u => {
-        sheet.getRange(u.r, 1, 1, 4).setValues([u.val]);
+        sheet.getRange(u.r, 1, 1, u.val.length).setValues([u.val]);
     });
 
     // Process New (Batch Append)
     if (newRows.length > 0) {
-        // appendRow only takes 1 row. getRange().setValues takes matrix.
         const lastRow = sheet.getLastRow();
-        sheet.getRange(lastRow + 1, 1, newRows.length, 4).setValues(newRows);
+        sheet.getRange(lastRow + 1, 1, newRows.length, newRows[0].length).setValues(newRows);
     }
 
     return { success: true, count: items.length };
@@ -253,7 +264,12 @@ function uploadImage(base64Str, id) {
 function clearAllData() {
     const sheet = getDbSheet();
     sheet.clearContents();
-    sheet.appendRow(['ID', 'WarehouseID', 'DataJSON', 'LastUpdated']);
+    // Headers
+    const headers = [
+        'ID', 'WarehouseID', 'Type', 'Serial', 'PEA', 'Brand', 'Model',
+        'Remarks', 'Inspector', 'Tel', 'Photo', 'PEA Photo', 'Status', 'LastUpdated', 'DataJSON'
+    ];
+    sheet.appendRow(headers);
 }
 
 function initializeWarehouses() {
