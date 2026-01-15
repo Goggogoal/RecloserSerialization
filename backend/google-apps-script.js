@@ -135,10 +135,16 @@ function getAllParcels() {
 function saveParcel(parcel, warehouseId) {
     const sheet = getDbSheet();
 
-    // Image Handling: If photo is Base64, upload to Drive, replace with URL
+    // Image Handling: Upload Parcel Photo
     if (parcel.photo && parcel.photo.startsWith('data:image')) {
-        const imageUrl = uploadImage(parcel.photo, parcel.id);
+        const imageUrl = uploadImage(parcel.photo, parcel.id + "_main");
         parcel.photo = imageUrl;
+    }
+
+    // Image Handling: Upload PEA Photo
+    if (parcel.peaPhoto && parcel.peaPhoto.startsWith('data:image')) {
+        const imageUrl = uploadImage(parcel.peaPhoto, parcel.id + "_pea");
+        parcel.peaPhoto = imageUrl;
     }
 
     const jsonStr = JSON.stringify(parcel);
@@ -153,12 +159,32 @@ function saveParcel(parcel, warehouseId) {
         }
     }
 
+    // Schema: 
+    // [ID, WarehouseID, Type, Serial, PEA, Brand, Model, Remarks, Inspector, Tel, Photo, PEA Photo, Status, LastUpdated, DataJSON]
+    const rowData = [
+        parcel.id,
+        warehouseId,
+        parcel.type || '',
+        parcel.serial || '',
+        parcel.peaNo || '',
+        parcel.brand || '',
+        parcel.model || '',
+        parcel.remarks || '',
+        parcel.inspectorName || '',
+        parcel.inspectorTel || '',
+        parcel.photo || '',
+        parcel.peaPhoto || '',
+        parcel.status || 'pending',
+        new Date(),
+        jsonStr
+    ];
+
     if (rowIndex > 0) {
         // Update
-        sheet.getRange(rowIndex, 1, 1, 4).setValues([[parcel.id, warehouseId, jsonStr, new Date()]]);
+        sheet.getRange(rowIndex, 1, 1, rowData.length).setValues([rowData]);
     } else {
         // Insert
-        sheet.appendRow([parcel.id, warehouseId, jsonStr, new Date()]);
+        sheet.appendRow(rowData);
     }
 
     return { success: true, parcel }; // Return updated parcel with Image URL

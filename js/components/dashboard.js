@@ -10,17 +10,9 @@ export const renderDashboard = (container) => {
 
     warehouses.forEach(w => {
         totalParcels += w.parcels.length;
-        pendingChecks += w.parcels.filter(p => !p.status || p.status === 'pending').length;
-        completedChecks += w.parcels.filter(p => p.status === 'confirmed').length;
-        // Note: 'checked' (Inspector done) is technically pending Manager approval. 
-        // Or we can count 'checked' as completed for the Inspector. 
-        // Let's count 'checked' + 'confirmed' as Inspector Progress? 
-        // User asked "Pending Checks". 'checked' is waiting for Manager. 'pending' is waiting for Inspector.
-        // Let's stick to: Pending = 'pending', Completed = 'confirmed'. 
-        // And maybe show 'Waiting Appr' if we want.
-        // For simple dashboard:
-        // Pending = 'pending'
-        // Completed = 'confirmed'
+        const confirmed = w.parcels.filter(p => p.status === 'confirmed').length;
+        completedChecks += confirmed;
+        pendingChecks += (w.parcels.length - confirmed);
     });
 
     const html = `
