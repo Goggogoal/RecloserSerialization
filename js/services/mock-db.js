@@ -112,7 +112,45 @@ export const db = {
         // We probably don't push full bulk to API yet, as API is optimized for single parcel save.
         // For import, valid to just loop and save? Or add 'bulkSave' to API.
         // For now, let's just keep it local-first for Import.
-        alert("Bulk import saved locally. Cloud sync for bulk not fully implemented in this v1.");
+        // alert("Bulk import saved locally. Cloud sync for bulk not fully implemented in this v1.");
+    },
+
+    saveParcels: async (items) => {
+        // items = [{ parcel: {}, warehouseId: 'wh-1' }]
+        const data = getData();
+        let changed = false;
+
+        items.forEach(item => {
+            const wh = data.warehouses.find(w => w.id === item.warehouseId);
+            if (wh) {
+                // Check dupes? Import generates new IDs usually.
+                // If ID exists, update.
+                const existingIdx = wh.parcels.findIndex(p => p.id === item.parcel.id);
+                if (existingIdx >= 0) {
+                    wh.parcels[existingIdx] = item.parcel;
+                } else {
+                    wh.parcels.push(item.parcel);
+                }
+                changed = true;
+            }
+        });
+
+        if (changed) {
+            saveData(data);
+
+            // Sync to Cloud
+            if (db.getApiUrl()) {
+                console.log("Bulk Syncing to Cloud...");
+                try {
+                    await apiCall('saveParcels', { parcels: items });
+                    console.log("Bulk Sync Complete");
+                } catch (e) {
+                    console.error("Bulk Sync Failed", e);
+                    alert("Local saved, but Cloud Sync failed: " + e.message);
+                }
+            }
+        }
+        return true;
     },
 
     clearData: async () => {

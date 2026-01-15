@@ -46,6 +46,10 @@ function handleRequest(e) {
             return responseJSON(saveParcel(data.parcel, data.warehouseId));
         }
 
+        if (action === 'saveParcels') {
+            return responseJSON(saveParcels(data.parcels));
+        }
+
         if (action === 'clearData') {
             clearAllData();
             return responseJSON({ success: true });
@@ -158,6 +162,56 @@ function saveParcel(parcel, warehouseId) {
     }
 
     return { success: true, parcel }; // Return updated parcel with Image URL
+}
+
+function saveParcels(items) {
+    // items = [{ parcel: {}, warehouseId: 'wh-1' }, ...]
+    // Optimization: Read all rows once, then append/update in batches?
+    // For simplicity/reliability in v1, let's reuse saveParcel but carefully.
+    // Ideally, we prepare a big array for appendRow to minimize I/O.
+
+    // For now, let's just loop. It might be slow 500 items -> 500 secs if naive.
+    // Apps Script is slow with individual calls. We MUST batch.
+
+    const sheet = getDbSheet();
+    const rows = sheet.getDataRange().getValues();
+    const existingIds = new Map();
+    rows.forEach((r, i) => { if (i > 0) existingIds.set(r[0], i + 1); }); // ID -> RowIndex
+
+    const newRows = [];
+    const updates = []; // { rowIndex, values }
+
+    items.forEach(item => {
+        const p = item.parcel;
+        const wid = item.warehouseId;
+
+        // Skip image upload for bulk import if empty/null to save time?
+        // Excel import usually has no photos. 
+        // If it DOES, we can't batch easily. Assume no photos for Bulk Excel Import.
+
+        const jsonStr = JSON.stringify(p);
+        const rowData = [p.id, wid, jsonStr, new Date()];
+
+        if (existingIds.has(p.id)) {
+            updates.push({ r: existingIds.get(p.id), val: rowData });
+        } else {
+            newRows.push(rowData);
+        }
+    });
+
+    // Process Updates (One by one unfortunately unless contiguous, but usually import is NEW data)
+    updates.forEach(u => {
+        sheet.getRange(u.r, 1, 1, 4).setValues([u.val]);
+    });
+
+    // Process New (Batch Append)
+    if (newRows.length > 0) {
+        // appendRow only takes 1 row. getRange().setValues takes matrix.
+        const lastRow = sheet.getLastRow();
+        sheet.getRange(lastRow + 1, 1, newRows.length, 4).setValues(newRows);
+    }
+
+    return { success: true, count: items.length };
 }
 
 function uploadImage(base64Str, id) {

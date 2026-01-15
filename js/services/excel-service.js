@@ -38,7 +38,8 @@ export const ExcelService = {
         // This is a placeholder logic that can be refined based on the actual Excel format
 
         let importCount = 0;
-        const warehouses = db.getWarehouses();
+        const warehouses = db.getWarehouses(); // Read only for lookup
+        const itemsToSave = []; // { parcel, warehouseId }
 
         rows.forEach((row, index) => {
             if (index < 1) return; // Skip header
@@ -55,33 +56,36 @@ export const ExcelService = {
                 const types = ['Recloser', 'VT', 'Control', 'Hanger'];
                 const counts = [row[1], row[2], row[3], row[4]];
 
-                let addedForWh = 0;
-
                 types.forEach((type, typeIdx) => {
                     const qty = parseInt(counts[typeIdx]) || 0;
                     for (let i = 0; i < qty; i++) {
-                        existingWh.parcels.push({
+                        const newParcel = {
                             id: `p-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                             type: type,
                             status: 'pending',
                             timestamp: new Date().toISOString(),
                             serial: '', peaNo: '', brand: '', model: '', remarks: '', photo: null
+                        };
+
+                        itemsToSave.push({
+                            parcel: newParcel,
+                            warehouseId: existingWh.id
                         });
-                        addedForWh++;
                     }
                 });
-
-                if (addedForWh > 0) {
-                    importCount += addedForWh;
-                }
             }
         });
 
-        // Save the updated list using the new Bulk Method
-        db.updateWarehouses(warehouses);
-
-        alert(`Successfully imported ${importCount} new pending parcels.`);
-        location.reload();
+        if (itemsToSave.length > 0) {
+            importCount = itemsToSave.length;
+            // Use Bulk Save
+            db.saveParcels(itemsToSave).then(() => {
+                alert(`Successfully imported ${importCount} new pending parcels and synced to cloud.`);
+                location.reload();
+            });
+        } else {
+            alert("No matching data found to import.");
+        }
     },
 
 
