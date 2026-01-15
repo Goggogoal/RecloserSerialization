@@ -103,11 +103,11 @@ function getDbSheet() {
 }
 
 function getImageFolder() {
-    const folders = DriveApp.getFoldersByName('Warehouse_App_Images');
+    const folders = DriveApp.getFoldersByName('RecloserSerializePhoto');
     if (folders.hasNext()) {
         return folders.next();
     } else {
-        return DriveApp.createFolder('Warehouse_App_Images');
+        return DriveApp.createFolder('RecloserSerializePhoto');
     }
 }
 
@@ -118,20 +118,26 @@ function getAllParcels() {
 
     // Skip Header (row 0)
     for (let i = 1; i < rows.length; i++) {
-        const [id, whId, jsonStr] = rows[i];
-        try {
-            const parcel = JSON.parse(jsonStr);
-            const wh = warehouses.find(w => w.id === whId);
-            if (wh) {
-                wh.parcels.push(parcel);
-            }
-        } catch (e) { }
-    }
+        const row = rows[i];
+        // Schema: [ID, WarehouseID, Type ... DataJSON]
+        // DataJSON is at index 14 (15th column)
+        const id = row[0];
+        const whId = row[1];
+        const jsonStr = row[14];
 
-    // Also get Enums if we store them?
-    // For simplicity, let's keep Enums in a separate sheet or PropertyService.
-    // We'll stick to hardcoded + learnt enums in client for now or add 'MetaData' sheet later.
-    // Let's rely on client to manage enums locally or push them. 
+        try {
+            if (jsonStr) {
+                const parcel = JSON.parse(jsonStr);
+                const wh = warehouses.find(w => w.id === whId);
+                if (wh) {
+                    wh.parcels.push(parcel);
+                }
+            }
+        } catch (e) {
+            // Fallback: If JSON is invalid, maybe reconstruct from columns? 
+            // For now, mostly rely on JSON.
+        }
+    }
 
     return { warehouses };
 }
