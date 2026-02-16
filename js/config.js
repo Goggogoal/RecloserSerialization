@@ -4,7 +4,7 @@
 
 export const CONFIG = {
     // Set to false and provide GAS_URL to connect to real Google Sheets
-    DEMO_MODE: true,
+    DEMO_MODE: false,
 
     // Google Apps Script Web App deployment URL
     // Replace with your actual GAS deployment URL when ready
@@ -36,3 +36,4 @@ export const CONFIG = {
         REFURBISHED: 'R'
     }
 };
+
