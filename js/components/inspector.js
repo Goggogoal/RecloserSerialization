@@ -1,5 +1,5 @@
 // ============================================================
-// PEA-AIMS Inspector Component — Smart Form + Auto-Fill
+// PEA-AIMS Inspector Component v2 — Search, SLoc stock, Edit prefill
 // ============================================================
 import { store } from '../store.js';
 import { api } from '../services/api.js';
@@ -11,13 +11,23 @@ export function renderInspector() {
     return `
     <div class="inspector-page" id="inspectorPage">
         <div class="page-header">
+            <div class="page-breadcrumb">
+                <button class="btn btn-sm btn-secondary breadcrumb-back" id="inspBackBtn"><i data-lucide="arrow-left"></i> Back</button>
+            </div>
             <h2 class="page-title"><i data-lucide="clipboard-check"></i> Inspection</h2>
             <p class="page-subtitle">Add and manage inspection records</p>
         </div>
         <div class="filters-bar">
-            <div class="filter-group">
+            <div class="filter-group filter-group-search">
                 <label><i data-lucide="warehouse"></i> Warehouse</label>
-                <select id="inspWarehouseSelect" class="filter-select"><option value="">Select Warehouse...</option></select>
+                <div class="searchable-select-wrapper">
+                    <input type="text" id="inspWhSearch" placeholder="Search warehouse..." class="search-input filter-search-input" autocomplete="off" />
+                    <select id="inspWarehouseSelect" class="filter-select"><option value="">Select Warehouse...</option></select>
+                </div>
+            </div>
+            <div class="filter-group">
+                <label><i data-lucide="box"></i> SLoc</label>
+                <select id="inspSLocSelect" class="filter-select"><option value="">All SLoc</option></select>
             </div>
             <div class="filter-group">
                 <label><i data-lucide="layers"></i> Material Type</label>
@@ -80,45 +90,134 @@ function renderFormModal() {
 export async function initInspector() {
     const user = store.get('user');
     if (!user) return;
+
     // Load master data if needed
     if (!(store.get('warehouses') || []).length) {
         const r = await api.call('getMasterData');
         if (r.success) store.update({ warehouses: r.warehouses, contracts: r.contracts, equipment: r.equipment, mb52: r.mb52 });
     }
-    const whSelect = document.getElementById('inspWarehouseSelect');
-    const whs = store.get('warehouses') || [];
-    (user.zone === 'ALL' ? whs : whs.filter(w => w.zone === user.zone)).forEach(wh => {
-        const o = document.createElement('option'); o.value = wh.code; o.textContent = `${wh.name} (${wh.code})`; whSelect.appendChild(o);
+
+    // Back button
+    document.getElementById('inspBackBtn')?.addEventListener('click', () => {
+        const selWh = store.get('selectedWarehouse');
+        store.set('currentView', selWh ? 'sloc' : 'dashboard');
     });
+
+    // Populate warehouse dropdown (unique by code) — show "Warehouse Name | Warehouse Code"
+    const whSelect = document.getElementById('inspWarehouseSelect');
+    const allWhs = store.get('warehouses') || [];
+    const uniqueWHs = [];
+    const seenCodes = new Set();
+    (user.zone === 'ALL' ? allWhs : allWhs.filter(w => w.zone === user.zone)).forEach(wh => {
+        if (!seenCodes.has(wh.code)) { seenCodes.add(wh.code); uniqueWHs.push(wh); }
+    });
+    uniqueWHs.forEach(wh => {
+        const o = document.createElement('option');
+        o.value = wh.code;
+        o.textContent = `${wh.name} | ${wh.code}`;
+        whSelect.appendChild(o);
+    });
+
+    // Pre-select from store
     const sel = store.get('selectedWarehouse');
     if (sel) whSelect.value = sel.code;
-    whSelect.addEventListener('change', () => loadList());
+
+    // Search filter for warehouse dropdown
+    const searchInput = document.getElementById('inspWhSearch');
+    searchInput?.addEventListener('input', () => {
+        const q = searchInput.value.trim().toLowerCase();
+        Array.from(whSelect.options).forEach(opt => {
+            if (!opt.value) return; // keep placeholder
+            opt.hidden = q && !opt.textContent.toLowerCase().includes(q);
+        });
+    });
+
+    // Warehouse change → populate SLoc dropdown
+    whSelect.addEventListener('change', () => {
+        populateSLocs(whSelect.value);
+        loadList();
+    });
+
+    // SLoc change
+    document.getElementById('inspSLocSelect')?.addEventListener('change', () => loadList());
+
+    // Pre-populate SLocs if warehouse selected
+    if (sel) {
+        populateSLocs(sel.code);
+        // Pre-select SLoc from store
+        const preSloc = store.get('selectedSLoc');
+        if (preSloc) document.getElementById('inspSLocSelect').value = preSloc;
+    }
+
+    // Material tabs
     document.querySelectorAll('.material-tab').forEach(tab => {
-        tab.addEventListener('click', () => { document.querySelectorAll('.material-tab').forEach(t => t.classList.remove('active')); tab.classList.add('active'); store.set('selectedMaterialType', tab.dataset.type); loadList(); });
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.material-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            store.set('selectedMaterialType', tab.dataset.type);
+            loadList();
+        });
     });
     const firstTab = document.querySelector('.material-tab');
     if (firstTab) { firstTab.classList.add('active'); store.set('selectedMaterialType', firstTab.dataset.type); }
+
     document.getElementById('fabAddItem')?.addEventListener('click', () => openForm());
     setupFormHandlers();
+
     if (sel) loadList();
+}
+
+function populateSLocs(whCode) {
+    const slocSelect = document.getElementById('inspSLocSelect');
+    slocSelect.innerHTML = '<option value="">All SLoc</option>';
+    if (!whCode) return;
+    const allWhs = store.get('warehouses') || [];
+    const slocs = [...new Set(allWhs.filter(w => w.code === whCode).map(w => w.sloc))];
+    slocs.forEach(sl => {
+        const o = document.createElement('option');
+        o.value = sl;
+        o.textContent = sl;
+        slocSelect.appendChild(o);
+    });
+    // Pre-select if stored
+    const preSloc = store.get('selectedSLoc');
+    if (preSloc && slocs.includes(preSloc)) slocSelect.value = preSloc;
 }
 
 async function loadList() {
     const whCode = document.getElementById('inspWarehouseSelect')?.value;
+    const sloc = document.getElementById('inspSLocSelect')?.value;
     const matType = store.get('selectedMaterialType');
     const list = document.getElementById('inspectionList');
     const fab = document.getElementById('fabAddItem');
-    if (!whCode || !matType) { list.innerHTML = `<div class="empty-state"><i data-lucide="search"></i><p>Select warehouse and type</p></div>`; if (window.lucide) lucide.createIcons(); fab.style.display = 'none'; return; }
+
+    if (!whCode || !matType) {
+        list.innerHTML = `<div class="empty-state"><i data-lucide="search"></i><p>Select warehouse and type</p></div>`;
+        if (window.lucide) lucide.createIcons();
+        fab.style.display = 'none';
+        return;
+    }
     fab.style.display = 'flex';
     list.innerHTML = `<div class="loading-placeholder"><div class="spinner-large"></div></div>`;
-    const result = await api.call('getInspections', { warehouseCode: whCode, materialType: matType });
+
+    const result = await api.call('getInspections', { warehouseCode: whCode, sloc: sloc || undefined, materialType: matType });
     if (!result.success) { list.innerHTML = `<div class="empty-state error"><p>Failed to load</p></div>`; return; }
+
     const items = result.inspections;
     const mb52 = store.get('mb52') || [];
-    const stock = mb52.filter(m => m.whCode === whCode && m.materialType === matType).reduce((s, m) => s + m.qty, 0);
+
+    // Stock — filter by warehouse + sloc + materialType
+    let stockItems = mb52.filter(m => m.whCode === whCode && m.materialType === matType);
+    if (sloc) stockItems = stockItems.filter(m => m.sloc === sloc);
+    const stock = stockItems.reduce((s, m) => s + m.qty, 0);
     const pct = stock > 0 ? Math.round(items.length / stock * 100) : 0;
+
+    // SLoc label for display
+    const slocLabel = sloc ? ` / ${sloc}` : '';
+
     list.innerHTML = `
         <div class="list-summary">
+            <span><i data-lucide="warehouse"></i> ${whCode}${slocLabel}</span>
             <span><i data-lucide="package"></i> Stock: ${stock}</span>
             <span><i data-lucide="check"></i> Done: ${items.length}</span>
             <span><i data-lucide="trending-up"></i> ${pct}%</span>
@@ -136,14 +235,46 @@ function cardHTML(i) {
     <div class="insp-card-footer"><span class="insp-timestamp"><i data-lucide="clock"></i> ${i.timestamp}</span>${i.status !== 'Approved' ? `<button class="btn btn-sm btn-outline btn-edit-inspection" data-id="${i.id}"><i data-lucide="edit-2"></i></button>` : ''}</div></div>`;
 }
 
-function openForm(editId = null) {
+async function openForm(editId = null) {
     const ov = document.getElementById('inspFormOverlay'), form = document.getElementById('inspForm');
-    form.reset(); form.dataset.editId = editId || '';
+    form.reset();
+    form.dataset.editId = editId || '';
     document.querySelectorAll('.photo-preview').forEach(p => { p.style.display = 'none'; p.querySelector('img').src = ''; });
     document.querySelectorAll('.photo-dropzone').forEach(d => d.style.display = 'flex');
     document.getElementById('autoFillIndicator').style.display = 'none';
-    document.getElementById('inspFormTitle').innerHTML = editId ? '<i data-lucide="edit"></i> Edit' : '<i data-lucide="plus-circle"></i> Add New';
-    ov.style.display = 'flex'; requestAnimationFrame(() => ov.classList.add('visible')); if (window.lucide) lucide.createIcons();
+
+    // ★ Edit mode: prefill ALL fields with existing data
+    if (editId) {
+        document.getElementById('inspFormTitle').innerHTML = '<i data-lucide="edit"></i> Edit';
+        const r = await api.call('getInspectionById', { id: editId });
+        if (r.success && r.inspection) {
+            const ins = r.inspection;
+            document.getElementById('inspPeaNo').value = ins.peaNo || '';
+            document.getElementById('inspSerialNo').value = ins.serialNo || '';
+            document.getElementById('inspContractNo').value = ins.contractNo || '';
+            document.getElementById('inspBatch').value = ins.batch || 'N';
+            document.getElementById('inspBrand').value = ins.brand || '';
+            document.getElementById('inspModel').value = ins.model || '';
+            document.getElementById('inspRemarks').value = ins.remarks || '';
+            // Photos
+            if (ins.imageOverview) {
+                const pv = document.querySelector('#photoOverview .photo-preview');
+                const img = pv?.querySelector('img');
+                if (pv && img) { img.src = ins.imageOverview; pv.style.display = 'block'; document.querySelector('#photoOverview .photo-dropzone').style.display = 'none'; }
+            }
+            if (ins.imageNameplate) {
+                const pv = document.querySelector('#photoNameplate .photo-preview');
+                const img = pv?.querySelector('img');
+                if (pv && img) { img.src = ins.imageNameplate; pv.style.display = 'block'; document.querySelector('#photoNameplate .photo-dropzone').style.display = 'none'; }
+            }
+        }
+    } else {
+        document.getElementById('inspFormTitle').innerHTML = '<i data-lucide="plus-circle"></i> Add New';
+    }
+
+    ov.style.display = 'flex';
+    requestAnimationFrame(() => ov.classList.add('visible'));
+    if (window.lucide) lucide.createIcons();
 }
 
 function closeForm() { const ov = document.getElementById('inspFormOverlay'); ov.classList.remove('visible'); setTimeout(() => ov.style.display = 'none', 300); }
@@ -152,44 +283,59 @@ function setupFormHandlers() {
     document.getElementById('inspFormClose')?.addEventListener('click', closeForm);
     document.getElementById('inspFormCancel')?.addEventListener('click', closeForm);
     document.getElementById('inspFormOverlay')?.addEventListener('click', e => { if (e.target.id === 'inspFormOverlay') closeForm(); });
+
     // Auto-fill
     const peaIn = document.getElementById('inspPeaNo');
     if (peaIn) { let t; peaIn.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => autoFill(peaIn.value.trim()), 500); }); }
+
     // Photos
     ['photoOverview', 'photoNameplate'].forEach(setupPhoto);
+
     // Submit
     document.getElementById('inspForm')?.addEventListener('submit', async e => {
         e.preventDefault();
         const whCode = document.getElementById('inspWarehouseSelect')?.value;
+        const sloc = document.getElementById('inspSLocSelect')?.value;
         const data = {
-            inspectorId: store.get('user')?.username, warehouseCode: whCode, materialType: store.get('selectedMaterialType'),
-            peaNo: document.getElementById('inspPeaNo').value.trim(), serialNo: document.getElementById('inspSerialNo').value.trim(),
-            contractNo: document.getElementById('inspContractNo').value.trim(), batch: document.getElementById('inspBatch').value,
-            brand: document.getElementById('inspBrand').value.trim(), model: document.getElementById('inspModel').value.trim(),
+            inspectorId: store.get('user')?.username,
+            warehouseCode: whCode,
+            sloc: sloc || '',
+            materialType: store.get('selectedMaterialType'),
+            peaNo: document.getElementById('inspPeaNo').value.trim(),
+            serialNo: document.getElementById('inspSerialNo').value.trim(),
+            contractNo: document.getElementById('inspContractNo').value.trim(),
+            batch: document.getElementById('inspBatch').value,
+            brand: document.getElementById('inspBrand').value.trim(),
+            model: document.getElementById('inspModel').value.trim(),
             remarks: document.getElementById('inspRemarks').value.trim(),
             imageOverview: document.querySelector('#photoOverview .photo-preview img')?.src || '',
             imageNameplate: document.querySelector('#photoNameplate .photo-preview img')?.src || ''
         };
         const editId = document.getElementById('inspForm')?.dataset.editId;
-        const r = editId ? await api.call('updateInspection', { id: editId, updates: data }) : await api.call('submitInspection', data);
-        if (r.success) { closeForm(); showToast('Saved!', 'success'); loadList(); } else showToast(r.message || 'Error', 'error');
+        const r = editId
+            ? await api.call('updateInspection', { id: editId, updates: data })
+            : await api.call('submitInspection', data);
+        if (r.success) { closeForm(); showToast('Saved!', 'success'); loadList(); }
+        else showToast(r.message || 'Error', 'error');
     });
 }
 
 function autoFill(peaNo) {
     const contracts = store.get('contracts') || [], ind = document.getElementById('autoFillIndicator');
     if (!peaNo) { ind.style.display = 'none'; return; }
-    const m = peaNo.match(/^(PEA-\w+-)(\d+)$/i);
+    const m = peaNo.match(/^(PEA-\w+-?)(\d+)$/i);
     if (!m) { ind.style.display = 'none'; return; }
     const pfx = m[1].toUpperCase(), num = parseInt(m[2], 10);
     for (const c of contracts) {
-        const sm = c.peaStart.match(/^(PEA-\w+-)(\d+)$/i), em = c.peaEnd.match(/^(PEA-\w+-)(\d+)$/i);
+        const sm = c.peaStart.match(/^(PEA-\w+-?)(\d+)$/i), em = c.peaEnd.match(/^(PEA-\w+-?)(\d+)$/i);
         if (!sm || !em) continue;
         if (pfx === sm[1].toUpperCase() && num >= parseInt(sm[2], 10) && num <= parseInt(em[2], 10)) {
             document.getElementById('inspContractNo').value = c.contractNo;
             document.getElementById('inspBrand').value = c.brand || '';
-            ind.style.display = 'flex'; ind.innerHTML = `<i data-lucide="zap"></i> ${c.contractNo} (${c.equipType})`;
-            if (window.lucide) lucide.createIcons(); return;
+            ind.style.display = 'flex';
+            ind.innerHTML = `<i data-lucide="zap"></i> ${c.contractNo} (${c.equipType})`;
+            if (window.lucide) lucide.createIcons();
+            return;
         }
     }
     ind.style.display = 'none';

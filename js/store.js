@@ -13,6 +13,7 @@ class Store {
             mb52: [],             // [{ materialCode, whName, whCode, batch, qty }]
             inspections: [],      // [{ ...inspection fields }]
             selectedWarehouse: null,
+            selectedSLoc: null,
             selectedMaterialType: null,
             prImageUrl: null,
             dashboardStats: null,

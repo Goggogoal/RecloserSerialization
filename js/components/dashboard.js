@@ -1,5 +1,5 @@
 // ============================================================
-// PEA-AIMS Dashboard Component
+// PEA-AIMS Dashboard — Deduplicated Warehouses + Search
 // ============================================================
 
 import { store } from '../store.js';
@@ -10,103 +10,66 @@ export function renderDashboard() {
     return `
     <div class="dashboard-page" id="dashboardPage">
         <div class="page-header">
-            <h2 class="page-title">
-                <i data-lucide="layout-dashboard"></i>
-                Dashboard
-            </h2>
+            <h2 class="page-title"><i data-lucide="layout-dashboard"></i> Dashboard</h2>
             <p class="page-subtitle" id="dashboardZoneLabel">Loading...</p>
         </div>
-
-        <!-- Stats Row -->
         <div class="stats-row" id="statsRow">
-            <div class="stat-card stat-total">
-                <div class="stat-icon"><i data-lucide="package"></i></div>
-                <div class="stat-content">
-                    <span class="stat-value" id="statTotal">--</span>
-                    <span class="stat-label">Total Stock</span>
-                </div>
-            </div>
-            <div class="stat-card stat-inspected">
-                <div class="stat-icon"><i data-lucide="clipboard-check"></i></div>
-                <div class="stat-content">
-                    <span class="stat-value" id="statInspected">--</span>
-                    <span class="stat-label">Inspected</span>
-                </div>
-            </div>
-            <div class="stat-card stat-approved">
-                <div class="stat-icon"><i data-lucide="check-circle"></i></div>
-                <div class="stat-content">
-                    <span class="stat-value" id="statApproved">--</span>
-                    <span class="stat-label">Approved</span>
-                </div>
-            </div>
-            <div class="stat-card stat-progress">
-                <div class="stat-icon"><i data-lucide="trending-up"></i></div>
-                <div class="stat-content">
-                    <span class="stat-value" id="statProgress">--%</span>
-                    <span class="stat-label">Progress</span>
-                </div>
-                <div class="stat-progress-ring" id="statProgressRing"></div>
-            </div>
+            <div class="stat-card stat-total"><div class="stat-icon"><i data-lucide="package"></i></div><div class="stat-content"><span class="stat-value" id="statTotal">--</span><span class="stat-label">Total Stock</span></div></div>
+            <div class="stat-card stat-inspected"><div class="stat-icon"><i data-lucide="clipboard-check"></i></div><div class="stat-content"><span class="stat-value" id="statInspected">--</span><span class="stat-label">Inspected</span></div></div>
+            <div class="stat-card stat-approved"><div class="stat-icon"><i data-lucide="check-circle"></i></div><div class="stat-content"><span class="stat-value" id="statApproved">--</span><span class="stat-label">Approved</span></div></div>
+            <div class="stat-card stat-progress"><div class="stat-icon"><i data-lucide="trending-up"></i></div><div class="stat-content"><span class="stat-value" id="statProgress">--%</span><span class="stat-label">Progress</span></div><div class="stat-progress-ring" id="statProgressRing"></div></div>
         </div>
-
-        <!-- Warehouse Cards Grid -->
         <div class="section-header">
             <h3><i data-lucide="warehouse"></i> Warehouse Overview</h3>
+            <div class="search-box">
+                <i data-lucide="search"></i>
+                <input type="text" id="whSearchInput" placeholder="Search warehouse..." class="search-input" />
+            </div>
         </div>
         <div class="warehouse-grid" id="warehouseGrid">
-            <div class="loading-placeholder">
-                <div class="spinner-large"></div>
-                <p>Loading warehouse data...</p>
-            </div>
+            <div class="loading-placeholder"><div class="spinner-large"></div><p>Loading warehouse data...</p></div>
         </div>
     </div>
     `;
 }
 
+let _warehouseStats = [];
+
 export async function initDashboard() {
     const user = store.get('user');
     if (!user) return;
-
     const zoneLabel = document.getElementById('dashboardZoneLabel');
-    if (zoneLabel) {
-        zoneLabel.textContent = user.zone === 'ALL'
-            ? 'All Zones Overview'
-            : `Zone ${user.zone} Overview`;
-    }
+    if (zoneLabel) zoneLabel.textContent = user.zone === 'ALL' ? 'All Zones Overview' : `Zone ${user.zone} Overview`;
 
     try {
         const result = await api.call('getDashboardStats', { zone: user.zone });
         if (result.success) {
             updateStats(result);
-            renderWarehouseCards(result.warehouseStats);
+            _warehouseStats = result.warehouseStats;
+            renderWarehouseCards(_warehouseStats);
         }
     } catch (err) {
         console.error('Dashboard load error:', err);
     }
+
+    // Search handler
+    document.getElementById('whSearchInput')?.addEventListener('input', (e) => {
+        const q = e.target.value.trim().toLowerCase();
+        if (!q) { renderWarehouseCards(_warehouseStats); return; }
+        const filtered = _warehouseStats.filter(wh => wh.name.toLowerCase().includes(q) || wh.code.toLowerCase().includes(q));
+        renderWarehouseCards(filtered);
+    });
 }
 
 function updateStats({ totalStock, inspected, approved, progress }) {
     animateCounter('statTotal', totalStock);
     animateCounter('statInspected', inspected);
     animateCounter('statApproved', approved);
-
     const progressEl = document.getElementById('statProgress');
     if (progressEl) progressEl.textContent = `${progress}%`;
-
-    // Progress ring
     const ring = document.getElementById('statProgressRing');
     if (ring) {
-        ring.innerHTML = `
-            <svg viewBox="0 0 44 44" class="progress-ring-svg">
-                <circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="4"/>
-                <circle cx="22" cy="22" r="18" fill="none" stroke="#FFD700" stroke-width="4"
-                    stroke-dasharray="${2 * Math.PI * 18}"
-                    stroke-dashoffset="${2 * Math.PI * 18 * (1 - progress / 100)}"
-                    stroke-linecap="round" transform="rotate(-90 22 22)"
-                    class="progress-ring-circle"/>
-            </svg>
-        `;
+        ring.innerHTML = `<svg viewBox="0 0 44 44" class="progress-ring-svg"><circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="4"/><circle cx="22" cy="22" r="18" fill="none" stroke="#FFD700" stroke-width="4" stroke-dasharray="${2 * Math.PI * 18}" stroke-dashoffset="${2 * Math.PI * 18 * (1 - progress / 100)}" stroke-linecap="round" transform="rotate(-90 22 22)" class="progress-ring-circle"/></svg>`;
     }
 }
 
@@ -117,10 +80,7 @@ function animateCounter(elId, target) {
     const step = Math.max(1, Math.floor(target / 30));
     const timer = setInterval(() => {
         current += step;
-        if (current >= target) {
-            current = target;
-            clearInterval(timer);
-        }
+        if (current >= target) { current = target; clearInterval(timer); }
         el.textContent = current.toLocaleString();
     }, 30);
 }
@@ -130,12 +90,7 @@ function renderWarehouseCards(warehouseStats) {
     if (!grid || !warehouseStats) return;
 
     if (warehouseStats.length === 0) {
-        grid.innerHTML = `
-            <div class="empty-state">
-                <i data-lucide="inbox"></i>
-                <p>No warehouses found for your zone.</p>
-            </div>
-        `;
+        grid.innerHTML = `<div class="empty-state"><i data-lucide="inbox"></i><p>No warehouses found.</p></div>`;
         if (window.lucide) lucide.createIcons();
         return;
     }
@@ -148,11 +103,10 @@ function renderWarehouseCards(warehouseStats) {
                     <div>
                         <h4>${wh.name}</h4>
                         <span class="wh-code-badge">${wh.code}</span>
+                        ${wh.slocs && wh.slocs.length > 1 ? `<span class="wh-sloc-count">${wh.slocs.length} SLoc</span>` : ''}
                     </div>
                 </div>
-                <div class="wh-progress-badge ${getProgressClass(wh.progress)}">
-                    ${wh.progress}%
-                </div>
+                <div class="wh-progress-badge ${getProgressClass(wh.progress)}">${wh.progress}%</div>
             </div>
             <div class="wh-card-body">
                 ${wh.types.map(t => `
@@ -163,10 +117,7 @@ function renderWarehouseCards(warehouseStats) {
                         </div>
                         <div class="wh-type-stats">
                             <span class="wh-type-count">${t.done}/${t.stock}</span>
-                            <div class="progress-bar-mini">
-                                <div class="progress-bar-fill ${getProgressClass(t.progress)}" 
-                                     style="width: ${t.progress}%"></div>
-                            </div>
+                            <div class="progress-bar-mini"><div class="progress-bar-fill ${getProgressClass(t.progress)}" style="width: ${t.progress}%"></div></div>
                         </div>
                     </div>
                 `).join('')}
@@ -182,25 +133,17 @@ function renderWarehouseCards(warehouseStats) {
 
     if (window.lucide) lucide.createIcons();
 
-    // Card click handlers
+    // Click → go to SLoc view (not directly to inspector)
     grid.querySelectorAll('.wh-inspect-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const code = btn.dataset.whCode;
             const name = btn.dataset.whName;
-            store.update({
-                selectedWarehouse: { code, name },
-                currentView: store.get('user')?.role === 'Manager' ? 'manager' : 'inspector'
-            });
+            store.update({ selectedWarehouse: { code, name }, currentView: 'sloc' });
         });
     });
 }
 
-function getProgressClass(progress) {
-    if (progress >= 80) return 'progress-high';
-    if (progress >= 40) return 'progress-mid';
-    return 'progress-low';
-}
-
+function getProgressClass(p) { return p >= 80 ? 'progress-high' : p >= 40 ? 'progress-mid' : 'progress-low'; }
 function getTypeIcon(type) {
     switch (type) {
         case 'Recloser': return '⚡';
