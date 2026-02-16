@@ -1,0 +1,211 @@
+// ============================================================
+// PEA-AIMS Dashboard Component
+// ============================================================
+
+import { store } from '../store.js';
+import { api } from '../services/api.js';
+import { CONFIG } from '../config.js';
+
+export function renderDashboard() {
+    return `
+    <div class="dashboard-page" id="dashboardPage">
+        <div class="page-header">
+            <h2 class="page-title">
+                <i data-lucide="layout-dashboard"></i>
+                Dashboard
+            </h2>
+            <p class="page-subtitle" id="dashboardZoneLabel">Loading...</p>
+        </div>
+
+        <!-- Stats Row -->
+        <div class="stats-row" id="statsRow">
+            <div class="stat-card stat-total">
+                <div class="stat-icon"><i data-lucide="package"></i></div>
+                <div class="stat-content">
+                    <span class="stat-value" id="statTotal">--</span>
+                    <span class="stat-label">Total Stock</span>
+                </div>
+            </div>
+            <div class="stat-card stat-inspected">
+                <div class="stat-icon"><i data-lucide="clipboard-check"></i></div>
+                <div class="stat-content">
+                    <span class="stat-value" id="statInspected">--</span>
+                    <span class="stat-label">Inspected</span>
+                </div>
+            </div>
+            <div class="stat-card stat-approved">
+                <div class="stat-icon"><i data-lucide="check-circle"></i></div>
+                <div class="stat-content">
+                    <span class="stat-value" id="statApproved">--</span>
+                    <span class="stat-label">Approved</span>
+                </div>
+            </div>
+            <div class="stat-card stat-progress">
+                <div class="stat-icon"><i data-lucide="trending-up"></i></div>
+                <div class="stat-content">
+                    <span class="stat-value" id="statProgress">--%</span>
+                    <span class="stat-label">Progress</span>
+                </div>
+                <div class="stat-progress-ring" id="statProgressRing"></div>
+            </div>
+        </div>
+
+        <!-- Warehouse Cards Grid -->
+        <div class="section-header">
+            <h3><i data-lucide="warehouse"></i> Warehouse Overview</h3>
+        </div>
+        <div class="warehouse-grid" id="warehouseGrid">
+            <div class="loading-placeholder">
+                <div class="spinner-large"></div>
+                <p>Loading warehouse data...</p>
+            </div>
+        </div>
+    </div>
+    `;
+}
+
+export async function initDashboard() {
+    const user = store.get('user');
+    if (!user) return;
+
+    const zoneLabel = document.getElementById('dashboardZoneLabel');
+    if (zoneLabel) {
+        zoneLabel.textContent = user.zone === 'ALL'
+            ? 'All Zones Overview'
+            : `Zone ${user.zone} Overview`;
+    }
+
+    try {
+        const result = await api.call('getDashboardStats', { zone: user.zone });
+        if (result.success) {
+            updateStats(result);
+            renderWarehouseCards(result.warehouseStats);
+        }
+    } catch (err) {
+        console.error('Dashboard load error:', err);
+    }
+}
+
+function updateStats({ totalStock, inspected, approved, progress }) {
+    animateCounter('statTotal', totalStock);
+    animateCounter('statInspected', inspected);
+    animateCounter('statApproved', approved);
+
+    const progressEl = document.getElementById('statProgress');
+    if (progressEl) progressEl.textContent = `${progress}%`;
+
+    // Progress ring
+    const ring = document.getElementById('statProgressRing');
+    if (ring) {
+        ring.innerHTML = `
+            <svg viewBox="0 0 44 44" class="progress-ring-svg">
+                <circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="4"/>
+                <circle cx="22" cy="22" r="18" fill="none" stroke="#FFD700" stroke-width="4"
+                    stroke-dasharray="${2 * Math.PI * 18}"
+                    stroke-dashoffset="${2 * Math.PI * 18 * (1 - progress / 100)}"
+                    stroke-linecap="round" transform="rotate(-90 22 22)"
+                    class="progress-ring-circle"/>
+            </svg>
+        `;
+    }
+}
+
+function animateCounter(elId, target) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    let current = 0;
+    const step = Math.max(1, Math.floor(target / 30));
+    const timer = setInterval(() => {
+        current += step;
+        if (current >= target) {
+            current = target;
+            clearInterval(timer);
+        }
+        el.textContent = current.toLocaleString();
+    }, 30);
+}
+
+function renderWarehouseCards(warehouseStats) {
+    const grid = document.getElementById('warehouseGrid');
+    if (!grid || !warehouseStats) return;
+
+    if (warehouseStats.length === 0) {
+        grid.innerHTML = `
+            <div class="empty-state">
+                <i data-lucide="inbox"></i>
+                <p>No warehouses found for your zone.</p>
+            </div>
+        `;
+        if (window.lucide) lucide.createIcons();
+        return;
+    }
+
+    grid.innerHTML = warehouseStats.map(wh => `
+        <div class="warehouse-card" data-wh-code="${wh.code}">
+            <div class="wh-card-header">
+                <div class="wh-card-title">
+                    <i data-lucide="warehouse"></i>
+                    <div>
+                        <h4>${wh.name}</h4>
+                        <span class="wh-code-badge">${wh.code}</span>
+                    </div>
+                </div>
+                <div class="wh-progress-badge ${getProgressClass(wh.progress)}">
+                    ${wh.progress}%
+                </div>
+            </div>
+            <div class="wh-card-body">
+                ${wh.types.map(t => `
+                    <div class="wh-type-row">
+                        <div class="wh-type-info">
+                            <span class="wh-type-icon">${getTypeIcon(t.type)}</span>
+                            <span class="wh-type-name">${t.type}</span>
+                        </div>
+                        <div class="wh-type-stats">
+                            <span class="wh-type-count">${t.done}/${t.stock}</span>
+                            <div class="progress-bar-mini">
+                                <div class="progress-bar-fill ${getProgressClass(t.progress)}" 
+                                     style="width: ${t.progress}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+            <div class="wh-card-footer">
+                <span class="wh-total">${wh.inspected}/${wh.totalStock} items</span>
+                <button class="btn btn-sm btn-outline wh-inspect-btn" data-wh-code="${wh.code}" data-wh-name="${wh.name}">
+                    <i data-lucide="arrow-right"></i> View
+                </button>
+            </div>
+        </div>
+    `).join('');
+
+    if (window.lucide) lucide.createIcons();
+
+    // Card click handlers
+    grid.querySelectorAll('.wh-inspect-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const code = btn.dataset.whCode;
+            const name = btn.dataset.whName;
+            store.update({
+                selectedWarehouse: { code, name },
+                currentView: store.get('user')?.role === 'Manager' ? 'manager' : 'inspector'
+            });
+        });
+    });
+}
+
+function getProgressClass(progress) {
+    if (progress >= 80) return 'progress-high';
+    if (progress >= 40) return 'progress-mid';
+    return 'progress-low';
+}
+
+function getTypeIcon(type) {
+    switch (type) {
+        case 'Recloser': return '⚡';
+        case 'Control Cabinet': return '🔧';
+        case 'PT': return '🔌';
+        default: return '📦';
+    }
+}
