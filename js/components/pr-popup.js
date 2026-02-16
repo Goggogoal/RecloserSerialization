@@ -8,7 +8,13 @@ export async function showPRPopup() {
     try {
         const result = await api.call('getPR');
         if (!result.success) return;
-        const images = result.images || (result.imageUrl ? [result.imageUrl] : []);
+        // Handle both array (new) and single string (old GAS) formats
+        let images = [];
+        if (result.images && Array.isArray(result.images) && result.images.length > 0) {
+            images = result.images;
+        } else if (result.imageUrl) {
+            images = [result.imageUrl];
+        }
         if (!images.length) return;
 
         let current = 0;
