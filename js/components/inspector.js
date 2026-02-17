@@ -428,7 +428,7 @@ function setupFormHandlers() {
         const r = editId
             ? await api.call('updateInspection', { id: editId, updates: data })
             : await api.call('submitInspection', data);
-        if (r.success) { closeModal(ov); showToast('Saved!', 'success'); loadList(); }
+        if (r.success) { closeModal(ov); showToast('Saved!', 'success'); setTimeout(loadList, 500); }
         else showToast(r.message || 'Error', 'error');
     });
 }
