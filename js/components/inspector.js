@@ -180,8 +180,9 @@ function populateSLocs(whCode) {
     const slocSelect = document.getElementById('inspSLocSelect');
     slocSelect.innerHTML = '<option value="">All SLoc</option>';
     if (!whCode) return;
-    const allWhs = store.get('warehouses') || [];
-    const slocs = [...new Set(allWhs.filter(w => w.code === whCode).map(w => w.sloc))];
+    // Derive SLocs from MB52 data (source of truth for stock)
+    const mb52 = store.get('mb52') || [];
+    const slocs = [...new Set(mb52.filter(m => m.whCode === whCode && m.sloc).map(m => m.sloc))];
     slocs.forEach(sl => {
         const o = document.createElement('option');
         o.value = sl;
