@@ -1,5 +1,6 @@
 // ============================================================
-// PEA-AIMS Inspector Component v2 — Search, SLoc stock, Edit prefill
+// PEA-AIMS Inspector Component v3 — MB52-based pending items
+// Shows all MB52 qty items as pending slots + existing inspections
 // ============================================================
 import { store } from '../store.js';
 import { api } from '../services/api.js';
@@ -39,8 +40,8 @@ export function renderInspector() {
         <div class="inspection-list" id="inspectionList">
             <div class="empty-state"><i data-lucide="search"></i><p>Select a warehouse and material type</p></div>
         </div>
-        <button class="fab" id="fabAddItem" style="display:none;" title="Add New Item"><i data-lucide="plus"></i></button>
         ${renderFormModal()}
+        ${renderViewModal()}
     </div>`;
 }
 
@@ -87,11 +88,20 @@ function renderFormModal() {
     </div>`;
 }
 
+function renderViewModal() {
+    return `
+    <div class="modal-overlay" id="inspViewOverlay" style="display:none;">
+        <div class="modal-container modal-large">
+            <div class="modal-header"><h3><i data-lucide="eye"></i> Inspection Details</h3><button class="modal-close" id="inspViewClose"><i data-lucide="x"></i></button></div>
+            <div class="modal-body" id="inspViewBody"></div>
+        </div>
+    </div>`;
+}
+
 export async function initInspector() {
     const user = store.get('user');
     if (!user) return;
 
-    // Load master data if needed
     if (!(store.get('warehouses') || []).length) {
         const r = await api.call('getMasterData');
         if (r.success) store.update({ warehouses: r.warehouses, contracts: r.contracts, equipment: r.equipment, mb52: r.mb52 });
@@ -103,7 +113,7 @@ export async function initInspector() {
         store.set('currentView', selWh ? 'sloc' : 'dashboard');
     });
 
-    // Populate warehouse dropdown (unique by code) — show "Warehouse Name | Warehouse Code"
+    // Populate warehouse dropdown (unique by code)
     const whSelect = document.getElementById('inspWarehouseSelect');
     const allWhs = store.get('warehouses') || [];
     const uniqueWHs = [];
@@ -127,7 +137,7 @@ export async function initInspector() {
     searchInput?.addEventListener('input', () => {
         const q = searchInput.value.trim().toLowerCase();
         Array.from(whSelect.options).forEach(opt => {
-            if (!opt.value) return; // keep placeholder
+            if (!opt.value) return;
             opt.hidden = q && !opt.textContent.toLowerCase().includes(q);
         });
     });
@@ -144,7 +154,6 @@ export async function initInspector() {
     // Pre-populate SLocs if warehouse selected
     if (sel) {
         populateSLocs(sel.code);
-        // Pre-select SLoc from store
         const preSloc = store.get('selectedSLoc');
         if (preSloc) document.getElementById('inspSLocSelect').value = preSloc;
     }
@@ -161,8 +170,8 @@ export async function initInspector() {
     const firstTab = document.querySelector('.material-tab');
     if (firstTab) { firstTab.classList.add('active'); store.set('selectedMaterialType', firstTab.dataset.type); }
 
-    document.getElementById('fabAddItem')?.addEventListener('click', () => openForm());
     setupFormHandlers();
+    setupViewHandlers();
 
     if (sel) loadList();
 }
@@ -179,62 +188,164 @@ function populateSLocs(whCode) {
         o.textContent = sl;
         slocSelect.appendChild(o);
     });
-    // Pre-select if stored
     const preSloc = store.get('selectedSLoc');
     if (preSloc && slocs.includes(preSloc)) slocSelect.value = preSloc;
 }
 
+// ───────────────────────────────────────────────
+// Main list: MB52 qty items as pending + inspections
+// ───────────────────────────────────────────────
 async function loadList() {
     const whCode = document.getElementById('inspWarehouseSelect')?.value;
     const sloc = document.getElementById('inspSLocSelect')?.value;
     const matType = store.get('selectedMaterialType');
     const list = document.getElementById('inspectionList');
-    const fab = document.getElementById('fabAddItem');
 
     if (!whCode || !matType) {
         list.innerHTML = `<div class="empty-state"><i data-lucide="search"></i><p>Select warehouse and type</p></div>`;
         if (window.lucide) lucide.createIcons();
-        fab.style.display = 'none';
         return;
     }
-    fab.style.display = 'flex';
     list.innerHTML = `<div class="loading-placeholder"><div class="spinner-large"></div></div>`;
 
+    // Fetch inspections
     const result = await api.call('getInspections', { warehouseCode: whCode, sloc: sloc || undefined, materialType: matType });
     if (!result.success) { list.innerHTML = `<div class="empty-state error"><p>Failed to load</p></div>`; return; }
 
-    const items = result.inspections;
+    const inspections = result.inspections || [];
     const mb52 = store.get('mb52') || [];
 
-    // Stock — filter by warehouse + sloc + materialType
+    // Stock — filter by warehouse + sloc + materialType, sum qty
     let stockItems = mb52.filter(m => m.whCode === whCode && m.materialType === matType);
     if (sloc) stockItems = stockItems.filter(m => m.sloc === sloc);
-    const stock = stockItems.reduce((s, m) => s + m.qty, 0);
-    const pct = stock > 0 ? Math.round(items.length / stock * 100) : 0;
+    const totalStock = stockItems.reduce((s, m) => s + m.qty, 0);
+    const doneCount = inspections.length;
+    const pendingCount = Math.max(0, totalStock - doneCount);
+    const pct = totalStock > 0 ? Math.round(doneCount / totalStock * 100) : 0;
 
-    // SLoc label for display
     const slocLabel = sloc ? ` / ${sloc}` : '';
 
+    // Build HTML
     list.innerHTML = `
         <div class="list-summary">
             <span><i data-lucide="warehouse"></i> ${whCode}${slocLabel}</span>
-            <span><i data-lucide="package"></i> Stock: ${stock}</span>
-            <span><i data-lucide="check"></i> Done: ${items.length}</span>
+            <span><i data-lucide="package"></i> Total: ${totalStock}</span>
+            <span class="summary-done"><i data-lucide="check-circle"></i> Done: ${doneCount}</span>
+            <span class="summary-pending"><i data-lucide="clock"></i> Pending: ${pendingCount}</span>
             <span><i data-lucide="trending-up"></i> ${pct}%</span>
         </div>
-        ${items.length ? `<div class="inspection-cards">${items.map(i => cardHTML(i)).join('')}</div>` : `<div class="empty-state"><i data-lucide="clipboard"></i><p>No inspections yet</p></div>`}`;
+
+        ${inspections.length ? `
+        <h4 class="list-section-title"><i data-lucide="check-circle"></i> Inspected Items (${doneCount})</h4>
+        <div class="inspection-cards">${inspections.map(i => inspectedCardHTML(i)).join('')}</div>` : ''}
+
+        ${pendingCount > 0 ? `
+        <h4 class="list-section-title pending-title"><i data-lucide="clock"></i> Pending Items (${pendingCount})</h4>
+        <div class="pending-items-list">
+            ${generatePendingSlots(pendingCount, doneCount)}
+        </div>` : ''}
+
+        ${totalStock === 0 ? `<div class="empty-state"><i data-lucide="inbox"></i><p>No stock found for this selection</p></div>` : ''}
+    `;
+
     if (window.lucide) lucide.createIcons();
+
+    // Bind events
     list.querySelectorAll('.btn-edit-inspection').forEach(b => b.addEventListener('click', () => openForm(b.dataset.id)));
+    list.querySelectorAll('.btn-view-inspection').forEach(b => b.addEventListener('click', () => viewInspection(b.dataset.id)));
+    list.querySelectorAll('.btn-fill-pending').forEach(b => b.addEventListener('click', () => openForm(null)));
 }
 
-function cardHTML(i) {
+function generatePendingSlots(count, offset) {
+    // Show up to 50 pending slots with "show more" for performance
+    const showCount = Math.min(count, 50);
+    let html = '';
+    for (let i = 0; i < showCount; i++) {
+        html += `
+        <div class="pending-item">
+            <div class="pending-item-info">
+                <span class="pending-item-number">#${offset + i + 1}</span>
+                <span class="insp-status-badge status-pending">Pending</span>
+            </div>
+            <button class="btn btn-sm btn-primary btn-fill-pending" title="Fill inspection data">
+                <i data-lucide="edit-2"></i> Fill Data
+            </button>
+        </div>`;
+    }
+    if (count > 50) {
+        html += `<div class="pending-more-info"><i data-lucide="info"></i> Showing 50 of ${count} pending items. Complete inspections to see the rest.</div>`;
+    }
+    return html;
+}
+
+function inspectedCardHTML(i) {
     const sc = i.status === 'Approved' ? 'status-approved' : i.status === 'Inspected' ? 'status-inspected' : i.status === 'Rejected' ? 'status-rejected' : 'status-pending';
-    return `<div class="inspection-card ${sc}"><div class="insp-card-header"><span class="insp-pea-no">${i.peaNo}</span><span class="insp-status-badge ${sc}">${i.status}</span></div>
-    <div class="insp-card-body"><div class="insp-detail"><strong>Serial:</strong> ${i.serialNo}</div><div class="insp-detail"><strong>Contract:</strong> ${i.contractNo || '-'}</div><div class="insp-detail"><strong>Brand:</strong> ${i.brand || '-'}</div><div class="insp-detail"><strong>Batch:</strong> ${i.batch === 'N' ? 'New' : 'Refurb'}</div></div>
-    ${i.remarks ? `<div class="insp-remarks"><i data-lucide="message-square"></i> ${i.remarks}</div>` : ''}
-    <div class="insp-card-footer"><span class="insp-timestamp"><i data-lucide="clock"></i> ${i.timestamp}</span>${i.status !== 'Approved' ? `<button class="btn btn-sm btn-outline btn-edit-inspection" data-id="${i.id}"><i data-lucide="edit-2"></i></button>` : ''}</div></div>`;
+    return `<div class="inspection-card ${sc}">
+        <div class="insp-card-header">
+            <span class="insp-pea-no">${i.peaNo || '-'}</span>
+            <span class="insp-status-badge ${sc}">${i.status}</span>
+        </div>
+        <div class="insp-card-body">
+            <div class="insp-detail"><strong>Serial:</strong> ${i.serialNo || '-'}</div>
+            <div class="insp-detail"><strong>Contract:</strong> ${i.contractNo || '-'}</div>
+            <div class="insp-detail"><strong>Brand:</strong> ${i.brand || '-'}</div>
+            <div class="insp-detail"><strong>Batch:</strong> ${i.batch === 'N' ? 'New' : 'Refurb'}</div>
+        </div>
+        ${i.remarks ? `<div class="insp-remarks"><i data-lucide="message-square"></i> ${i.remarks}</div>` : ''}
+        <div class="insp-card-footer">
+            <span class="insp-timestamp"><i data-lucide="clock"></i> ${i.timestamp}</span>
+            <div class="action-btns">
+                <button class="btn btn-sm btn-outline btn-view-inspection" data-id="${i.id}" title="View"><i data-lucide="eye"></i></button>
+                ${i.status !== 'Approved' ? `<button class="btn btn-sm btn-outline btn-edit-inspection" data-id="${i.id}" title="Edit"><i data-lucide="edit-2"></i></button>` : ''}
+            </div>
+        </div>
+    </div>`;
 }
 
+// ───────────────────────────────────────────────
+// View Inspection (read-only modal)
+// ───────────────────────────────────────────────
+async function viewInspection(id) {
+    const r = await api.call('getInspectionById', { id });
+    if (!r.success || !r.inspection) { showToast('Could not load details', 'error'); return; }
+    const i = r.inspection;
+    const body = document.getElementById('inspViewBody');
+    body.innerHTML = `
+        <div class="view-detail-grid">
+            <div class="view-row"><strong>PEA No.</strong><span>${i.peaNo || '-'}</span></div>
+            <div class="view-row"><strong>Serial No.</strong><span>${i.serialNo || '-'}</span></div>
+            <div class="view-row"><strong>Warehouse</strong><span>${i.warehouseCode || '-'}</span></div>
+            <div class="view-row"><strong>SLoc</strong><span>${i.sloc || '-'}</span></div>
+            <div class="view-row"><strong>Material Type</strong><span>${i.materialType || '-'}</span></div>
+            <div class="view-row"><strong>Contract No.</strong><span>${i.contractNo || '-'}</span></div>
+            <div class="view-row"><strong>Batch</strong><span>${i.batch === 'N' ? 'New' : i.batch === 'R' ? 'Refurbished' : (i.batch || '-')}</span></div>
+            <div class="view-row"><strong>Brand</strong><span>${i.brand || '-'}</span></div>
+            <div class="view-row"><strong>Model</strong><span>${i.model || '-'}</span></div>
+            <div class="view-row"><strong>Status</strong><span class="insp-status-badge status-${(i.status || 'pending').toLowerCase()}">${i.status || '-'}</span></div>
+            <div class="view-row"><strong>Inspector</strong><span>${i.inspectorId || '-'}</span></div>
+            <div class="view-row"><strong>Timestamp</strong><span>${i.timestamp || '-'}</span></div>
+            ${i.remarks ? `<div class="view-row full-width"><strong>Remarks</strong><span>${i.remarks}</span></div>` : ''}
+            ${i.managerComment ? `<div class="view-row full-width"><strong>Manager Comment</strong><span>${i.managerComment}</span></div>` : ''}
+        </div>
+        ${(i.imageOverview || i.imageNameplate) ? `<div class="view-photos">
+            ${i.imageOverview ? `<div class="view-photo"><label>Overview Photo</label><img src="${i.imageOverview}" alt="Overview" /></div>` : ''}
+            ${i.imageNameplate ? `<div class="view-photo"><label>Nameplate Photo</label><img src="${i.imageNameplate}" alt="Nameplate" /></div>` : ''}
+        </div>` : ''}`;
+    const ov = document.getElementById('inspViewOverlay');
+    ov.style.display = 'flex';
+    requestAnimationFrame(() => ov.classList.add('visible'));
+    if (window.lucide) lucide.createIcons();
+}
+
+function setupViewHandlers() {
+    const ov = document.getElementById('inspViewOverlay');
+    document.getElementById('inspViewClose')?.addEventListener('click', () => closeModal(ov));
+    ov?.addEventListener('click', e => { if (e.target === ov) closeModal(ov); });
+}
+
+// ───────────────────────────────────────────────
+// Form (Add / Edit)
+// ───────────────────────────────────────────────
 async function openForm(editId = null) {
     const ov = document.getElementById('inspFormOverlay'), form = document.getElementById('inspForm');
     form.reset();
@@ -243,7 +354,6 @@ async function openForm(editId = null) {
     document.querySelectorAll('.photo-dropzone').forEach(d => d.style.display = 'flex');
     document.getElementById('autoFillIndicator').style.display = 'none';
 
-    // ★ Edit mode: prefill ALL fields with existing data
     if (editId) {
         document.getElementById('inspFormTitle').innerHTML = '<i data-lucide="edit"></i> Edit';
         const r = await api.call('getInspectionById', { id: editId });
@@ -256,7 +366,6 @@ async function openForm(editId = null) {
             document.getElementById('inspBrand').value = ins.brand || '';
             document.getElementById('inspModel').value = ins.model || '';
             document.getElementById('inspRemarks').value = ins.remarks || '';
-            // Photos
             if (ins.imageOverview) {
                 const pv = document.querySelector('#photoOverview .photo-preview');
                 const img = pv?.querySelector('img');
@@ -277,12 +386,13 @@ async function openForm(editId = null) {
     if (window.lucide) lucide.createIcons();
 }
 
-function closeForm() { const ov = document.getElementById('inspFormOverlay'); ov.classList.remove('visible'); setTimeout(() => ov.style.display = 'none', 300); }
+function closeModal(ov) { ov.classList.remove('visible'); setTimeout(() => ov.style.display = 'none', 300); }
 
 function setupFormHandlers() {
-    document.getElementById('inspFormClose')?.addEventListener('click', closeForm);
-    document.getElementById('inspFormCancel')?.addEventListener('click', closeForm);
-    document.getElementById('inspFormOverlay')?.addEventListener('click', e => { if (e.target.id === 'inspFormOverlay') closeForm(); });
+    const ov = document.getElementById('inspFormOverlay');
+    document.getElementById('inspFormClose')?.addEventListener('click', () => closeModal(ov));
+    document.getElementById('inspFormCancel')?.addEventListener('click', () => closeModal(ov));
+    ov?.addEventListener('click', e => { if (e.target.id === 'inspFormOverlay') closeModal(ov); });
 
     // Auto-fill
     const peaIn = document.getElementById('inspPeaNo');
@@ -291,9 +401,11 @@ function setupFormHandlers() {
     // Photos
     ['photoOverview', 'photoNameplate'].forEach(setupPhoto);
 
-    // Submit
+    // Submit ★ with confirm
     document.getElementById('inspForm')?.addEventListener('submit', async e => {
         e.preventDefault();
+        if (!confirm('Are you sure you want to save this inspection?')) return;
+
         const whCode = document.getElementById('inspWarehouseSelect')?.value;
         const sloc = document.getElementById('inspSLocSelect')?.value;
         const data = {
@@ -315,7 +427,7 @@ function setupFormHandlers() {
         const r = editId
             ? await api.call('updateInspection', { id: editId, updates: data })
             : await api.call('submitInspection', data);
-        if (r.success) { closeForm(); showToast('Saved!', 'success'); loadList(); }
+        if (r.success) { closeModal(ov); showToast('Saved!', 'success'); loadList(); }
         else showToast(r.message || 'Error', 'error');
     });
 }

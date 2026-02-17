@@ -1,5 +1,5 @@
 // ============================================================
-// PEA-AIMS Manager Review Component
+// PEA-AIMS Manager Review Component — v2 (confirm, view)
 // ============================================================
 import { store } from '../store.js';
 import { api } from '../services/api.js';
@@ -44,6 +44,13 @@ export function renderManager() {
                 </div>
             </div>
         </div>
+        <!-- View Modal -->
+        <div class="modal-overlay" id="viewOverlay" style="display:none;">
+            <div class="modal-container modal-large">
+                <div class="modal-header"><h3><i data-lucide="eye"></i> Inspection Details</h3><button class="modal-close" id="viewClose"><i data-lucide="x"></i></button></div>
+                <div class="modal-body" id="viewBody"></div>
+            </div>
+        </div>
     </div>`;
 }
 
@@ -56,7 +63,10 @@ export async function initManager() {
     }
     const sel = document.getElementById('mgrWarehouseSelect');
     const whs = store.get('warehouses') || [];
+    const seen = new Set();
     (user.zone === 'ALL' ? whs : whs.filter(w => w.zone === user.zone)).forEach(wh => {
+        if (seen.has(wh.code)) return;
+        seen.add(wh.code);
         const o = document.createElement('option'); o.value = wh.code; o.textContent = `${wh.name} (${wh.code})`; sel.appendChild(o);
     });
     const presel = store.get('selectedWarehouse');
@@ -64,6 +74,7 @@ export async function initManager() {
     sel.addEventListener('change', loadReviews);
     document.getElementById('mgrStatusFilter').addEventListener('change', loadReviews);
     setupCommentModal();
+    setupViewModal();
     loadReviews();
 }
 
@@ -79,10 +90,10 @@ async function loadReviews() {
     if (!items.length) { list.innerHTML = `<div class="empty-state"><i data-lucide="inbox"></i><p>No items found</p></div>`; if (window.lucide) lucide.createIcons(); return; }
     list.innerHTML = `<div class="review-count">${items.length} inspection(s)</div><div class="review-cards">${items.map(reviewCard).join('')}</div>`;
     if (window.lucide) lucide.createIcons();
-    // Bind actions
     list.querySelectorAll('.btn-approve').forEach(b => b.addEventListener('click', () => approveItem(b.dataset.id)));
     list.querySelectorAll('.btn-reject').forEach(b => b.addEventListener('click', () => rejectItem(b.dataset.id)));
     list.querySelectorAll('.btn-comment').forEach(b => b.addEventListener('click', () => openComment(b.dataset.id)));
+    list.querySelectorAll('.btn-view-detail').forEach(b => b.addEventListener('click', () => viewItem(b.dataset.id)));
 }
 
 function reviewCard(i) {
@@ -107,6 +118,7 @@ function reviewCard(i) {
         <div class="review-card-actions">
             <span class="insp-timestamp"><i data-lucide="clock"></i> ${i.timestamp}</span>
             <div class="action-btns">
+                <button class="btn btn-sm btn-outline btn-view-detail" data-id="${i.id}" title="View Details"><i data-lucide="eye"></i></button>
                 ${i.status !== 'Approved' ? `<button class="btn btn-sm btn-success btn-approve" data-id="${i.id}" title="Approve"><i data-lucide="check"></i> Approve</button>` : ''}
                 ${i.status !== 'Rejected' && i.status !== 'Approved' ? `<button class="btn btn-sm btn-danger btn-reject" data-id="${i.id}" title="Reject"><i data-lucide="x"></i> Reject</button>` : ''}
                 <button class="btn btn-sm btn-outline btn-comment" data-id="${i.id}" title="Comment"><i data-lucide="message-circle"></i></button>
@@ -116,13 +128,51 @@ function reviewCard(i) {
 }
 
 async function approveItem(id) {
+    if (!confirm('Are you sure you want to approve this inspection?')) return;
     const r = await api.call('approveInspection', { id });
     if (r.success) { showToast('Approved!', 'success'); loadReviews(); } else showToast('Error', 'error');
 }
 
 async function rejectItem(id) {
-    // Open comment modal for rejection
     openComment(id, true);
+}
+
+async function viewItem(id) {
+    const r = await api.call('getInspectionById', { id });
+    if (!r.success || !r.inspection) { showToast('Could not load details', 'error'); return; }
+    const i = r.inspection;
+    const body = document.getElementById('viewBody');
+    body.innerHTML = `
+        <div class="view-detail-grid">
+            <div class="view-row"><strong>PEA No.</strong><span>${i.peaNo || '-'}</span></div>
+            <div class="view-row"><strong>Serial No.</strong><span>${i.serialNo || '-'}</span></div>
+            <div class="view-row"><strong>Warehouse</strong><span>${i.warehouseCode || '-'}</span></div>
+            <div class="view-row"><strong>SLoc</strong><span>${i.sloc || '-'}</span></div>
+            <div class="view-row"><strong>Material Type</strong><span>${i.materialType || '-'}</span></div>
+            <div class="view-row"><strong>Contract No.</strong><span>${i.contractNo || '-'}</span></div>
+            <div class="view-row"><strong>Batch</strong><span>${i.batch === 'N' ? 'New' : i.batch === 'R' ? 'Refurbished' : (i.batch || '-')}</span></div>
+            <div class="view-row"><strong>Brand</strong><span>${i.brand || '-'}</span></div>
+            <div class="view-row"><strong>Model</strong><span>${i.model || '-'}</span></div>
+            <div class="view-row"><strong>Status</strong><span class="insp-status-badge status-${(i.status || 'pending').toLowerCase()}">${i.status || '-'}</span></div>
+            <div class="view-row"><strong>Inspector</strong><span>${i.inspectorId || '-'}</span></div>
+            <div class="view-row"><strong>Timestamp</strong><span>${i.timestamp || '-'}</span></div>
+            ${i.remarks ? `<div class="view-row full-width"><strong>Remarks</strong><span>${i.remarks}</span></div>` : ''}
+            ${i.managerComment ? `<div class="view-row full-width"><strong>Manager Comment</strong><span>${i.managerComment}</span></div>` : ''}
+        </div>
+        ${(i.imageOverview || i.imageNameplate) ? `<div class="view-photos">
+            ${i.imageOverview ? `<div class="view-photo"><label>Overview Photo</label><img src="${i.imageOverview}" alt="Overview" /></div>` : ''}
+            ${i.imageNameplate ? `<div class="view-photo"><label>Nameplate Photo</label><img src="${i.imageNameplate}" alt="Nameplate" /></div>` : ''}
+        </div>` : ''}`;
+    const ov = document.getElementById('viewOverlay');
+    ov.style.display = 'flex';
+    requestAnimationFrame(() => ov.classList.add('visible'));
+    if (window.lucide) lucide.createIcons();
+}
+
+function setupViewModal() {
+    const ov = document.getElementById('viewOverlay');
+    document.getElementById('viewClose')?.addEventListener('click', () => closeModal(ov));
+    ov?.addEventListener('click', e => { if (e.target === ov) closeModal(ov); });
 }
 
 let _commentId = null, _isReject = false;
@@ -134,20 +184,25 @@ function openComment(id, reject = false) {
     ov.style.display = 'flex'; requestAnimationFrame(() => ov.classList.add('visible'));
     if (window.lucide) lucide.createIcons();
 }
-function closeComment() { const ov = document.getElementById('commentOverlay'); ov.classList.remove('visible'); setTimeout(() => ov.style.display = 'none', 300); }
+
+function closeModal(ov) { ov.classList.remove('visible'); setTimeout(() => ov.style.display = 'none', 300); }
+
 function setupCommentModal() {
-    document.getElementById('commentClose')?.addEventListener('click', closeComment);
-    document.getElementById('commentCancelBtn')?.addEventListener('click', closeComment);
-    document.getElementById('commentOverlay')?.addEventListener('click', e => { if (e.target.id === 'commentOverlay') closeComment(); });
+    const ov = document.getElementById('commentOverlay');
+    document.getElementById('commentClose')?.addEventListener('click', () => closeModal(ov));
+    document.getElementById('commentCancelBtn')?.addEventListener('click', () => closeModal(ov));
+    ov?.addEventListener('click', e => { if (e.target === ov) closeModal(ov); });
     document.getElementById('commentSubmitBtn')?.addEventListener('click', async () => {
         const comment = document.getElementById('mgrComment').value.trim();
+        if (_isReject && !confirm('Are you sure you want to reject this inspection?')) return;
         let r;
         if (_isReject) { r = await api.call('rejectInspection', { id: _commentId, comment: comment || 'Rejected' }); }
         else { r = await api.call('updateInspection', { id: _commentId, updates: { managerComment: comment } }); }
-        if (r.success) { closeComment(); showToast(_isReject ? 'Rejected' : 'Comment saved', 'success'); loadReviews(); }
+        if (r.success) { closeModal(ov); showToast(_isReject ? 'Rejected' : 'Comment saved', 'success'); loadReviews(); }
         else showToast('Error', 'error');
     });
 }
+
 function showToast(msg, type = 'info') {
     document.querySelector('.toast')?.remove();
     const t = document.createElement('div'); t.className = `toast toast-${type}`;
