@@ -62,23 +62,23 @@ function renderFormModal() {
                         <input type="text" id="inspSerialNo" placeholder="Enter serial number" required /></div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group"><label for="inspContractNo">Contract No.</label><input type="text" id="inspContractNo" placeholder="Auto-filled or manual" /></div>
+                    <div class="form-group"><label for="inspContractNo">เลขที่สัญญา/Contract No.</label><input type="text" id="inspContractNo" placeholder="Auto-filled or manual" /></div>
                     <div class="form-group"><label for="inspBatch">Batch <span class="required">*</span></label>
                         <select id="inspBatch" required><option value="N">N - New</option><option value="R">R - Refurbished</option></select></div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group"><label for="inspBrand">Brand</label><input type="text" id="inspBrand" placeholder="Auto-filled or manual" /></div>
-                    <div class="form-group"><label for="inspModel">Model</label><input type="text" id="inspModel" placeholder="Enter model" /></div>
+                    <div class="form-group"><label for="inspBrand">ยี่ห้อ/Brand</label><input type="text" id="inspBrand" placeholder="Auto-filled or manual" /></div>
+                    <div class="form-group"><label for="inspModel">รุ่น/Model</label><input type="text" id="inspModel" placeholder="Enter model" /></div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group"><label>Overview Photo</label>
+                    <div class="form-group"><label>รูปถ่ายทั้งตัว/Overview Photo</label>
                         <div class="photo-upload" id="photoOverview"><div class="photo-dropzone" data-field="imageOverview"><i data-lucide="camera"></i><p>Click or drag</p><input type="file" accept="image/*" capture="environment" class="photo-input" /></div>
                         <div class="photo-preview" style="display:none;"><img src="" alt="Overview" /><button type="button" class="photo-remove"><i data-lucide="trash-2"></i></button></div></div></div>
-                    <div class="form-group"><label>Nameplate Photo</label>
+                    <div class="form-group"><label>รูปถ่าย PEA No./แผ่นป้าย/Nameplate Photo</label>
                         <div class="photo-upload" id="photoNameplate"><div class="photo-dropzone" data-field="imageNameplate"><i data-lucide="image"></i><p>Click or drag</p><input type="file" accept="image/*" capture="environment" class="photo-input" /></div>
                         <div class="photo-preview" style="display:none;"><img src="" alt="Nameplate" /><button type="button" class="photo-remove"><i data-lucide="trash-2"></i></button></div></div></div>
                 </div>
-                <div class="form-group"><label for="inspRemarks">Remarks</label><textarea id="inspRemarks" rows="2" placeholder="Notes..."></textarea></div>
+                <div class="form-group"><label for="inspRemarks">หมายเหตุ/Remarks</label><textarea id="inspRemarks" rows="2" placeholder="Notes..."></textarea></div>
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary" id="inspFormCancel">Cancel</button>
                     <button type="submit" class="btn btn-primary"><i data-lucide="save"></i> Save</button>
@@ -318,19 +318,19 @@ async function viewInspection(id) {
             <div class="view-row"><strong>Warehouse</strong><span>${i.warehouseCode || '-'}</span></div>
             <div class="view-row"><strong>SLoc</strong><span>${i.sloc || '-'}</span></div>
             <div class="view-row"><strong>Material Type</strong><span>${i.materialType || '-'}</span></div>
-            <div class="view-row"><strong>Contract No.</strong><span>${i.contractNo || '-'}</span></div>
+            <div class="view-row"><strong>เลขที่สัญญา/Contract No.</strong><span>${i.contractNo || '-'}</span></div>
             <div class="view-row"><strong>Batch</strong><span>${i.batch === 'N' ? 'New' : i.batch === 'R' ? 'Refurbished' : (i.batch || '-')}</span></div>
-            <div class="view-row"><strong>Brand</strong><span>${i.brand || '-'}</span></div>
-            <div class="view-row"><strong>Model</strong><span>${i.model || '-'}</span></div>
+            <div class="view-row"><strong>ยี่ห้อ/Brand</strong><span>${i.brand || '-'}</span></div>
+            <div class="view-row"><strong>รุ่น/Model</strong><span>${i.model || '-'}</span></div>
             <div class="view-row"><strong>Status</strong><span class="insp-status-badge status-${(i.status || 'pending').toLowerCase()}">${i.status || '-'}</span></div>
             <div class="view-row"><strong>Inspector</strong><span>${i.inspectorId || '-'}</span></div>
             <div class="view-row"><strong>Timestamp</strong><span>${i.timestamp || '-'}</span></div>
-            ${i.remarks ? `<div class="view-row full-width"><strong>Remarks</strong><span>${i.remarks}</span></div>` : ''}
+            ${i.remarks ? `<div class="view-row full-width"><strong>หมายเหตุ/Remarks</strong><span>${i.remarks}</span></div>` : ''}
             ${i.managerComment ? `<div class="view-row full-width"><strong>Manager Comment</strong><span>${i.managerComment}</span></div>` : ''}
         </div>
         ${(i.imageOverview || i.imageNameplate) ? `<div class="view-photos">
-            ${i.imageOverview ? `<div class="view-photo"><label>Overview Photo</label><img src="${i.imageOverview}" alt="Overview" /></div>` : ''}
-            ${i.imageNameplate ? `<div class="view-photo"><label>Nameplate Photo</label><img src="${i.imageNameplate}" alt="Nameplate" /></div>` : ''}
+            ${i.imageOverview ? `<div class="view-photo"><label>รูปถ่ายทั้งตัว/Overview Photo</label><img src="${i.imageOverview}" alt="Overview" /></div>` : ''}
+            ${i.imageNameplate ? `<div class="view-photo"><label>รูปถ่าย PEA No./แผ่นป้าย/Nameplate Photo</label><img src="${i.imageNameplate}" alt="Nameplate" /></div>` : ''}
         </div>` : ''}`;
     const ov = document.getElementById('inspViewOverlay');
     ov.style.display = 'flex';

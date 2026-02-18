@@ -21,8 +21,8 @@ export function renderLogin() {
                         <path d="M40 12 L46 32 L64 32 L50 44 L55 64 L40 53 L25 64 L30 44 L16 32 L34 32 Z" fill="#FFD700"/>
                     </svg>
                 </div>
-                <h1 class="login-title">PEA-AIMS</h1>
-                <p class="login-subtitle">Asset Inventory Management System</p>
+                <h1 class="login-title">PEA-Serialization</h1>
+                <p class="login-subtitle">Road to Recloser 22kV Serialization</p>
             </div>
             <form class="login-form" id="loginForm">
                 <div class="form-group">
@@ -58,7 +58,7 @@ export function renderLogin() {
             </form>
             <div class="login-footer">
                 <p>Provincial Electricity Authority</p>
-                <p class="login-demo-hint">Demo: admin / manager_a / inspector_a (password: 1234)</p>
+                <p class="login-demo-hint">Powered by สหกรณ์'90</p>
             </div>
         </div>
     </div>
