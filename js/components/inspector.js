@@ -389,7 +389,10 @@ async function openForm(editId = null) {
 
 function closeModal(ov) { ov.classList.remove('visible'); setTimeout(() => ov.style.display = 'none', 300); }
 
+let _formHandlersReady = false;
 function setupFormHandlers() {
+    if (_formHandlersReady) return;
+    _formHandlersReady = true;
     const ov = document.getElementById('inspFormOverlay');
     document.getElementById('inspFormClose')?.addEventListener('click', () => closeModal(ov));
     document.getElementById('inspFormCancel')?.addEventListener('click', () => closeModal(ov));
