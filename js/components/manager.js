@@ -106,10 +106,10 @@ function reviewCard(i) {
         <div class="review-card-body">
             <div class="review-grid">
                 <div><strong>Serial:</strong> ${i.serialNo}</div>
-                <div><strong>Contract:</strong> ${i.contractNo || '-'}</div>
-                <div><strong>Brand:</strong> ${i.brand || '-'}</div>
-                <div><strong>Model:</strong> ${i.model || '-'}</div>
-                <div><strong>Batch:</strong> ${i.batch === 'N' ? 'New' : 'Refurb'}</div>
+                <div><strong>เลขที่สัญญา/Contract:</strong> ${i.contractNo || '-'}</div>
+                <div><strong>ยี่ห้อ/Brand:</strong> ${i.brand || '-'}</div>
+                <div><strong>รุ่น/Model:</strong> ${i.model || '-'}</div>
+                <div><strong>Batch:</strong> ${i.batch === 'N' ? 'New' : 'Refurbished'}</div>
                 <div><strong>Inspector:</strong> ${i.inspectorId}</div>
             </div>
             ${i.remarks ? `<div class="insp-remarks"><i data-lucide="message-square"></i> ${i.remarks}</div>` : ''}
@@ -148,20 +148,20 @@ async function viewItem(id) {
             <div class="view-row"><strong>Serial No.</strong><span>${i.serialNo || '-'}</span></div>
             <div class="view-row"><strong>Warehouse</strong><span>${i.warehouseCode || '-'}</span></div>
             <div class="view-row"><strong>SLoc</strong><span>${i.sloc || '-'}</span></div>
-            <div class="view-row"><strong>Material Type</strong><span>${i.materialType || '-'}</span></div>
-            <div class="view-row"><strong>Contract No.</strong><span>${i.contractNo || '-'}</span></div>
+            <div class="view-row"><strong>ประเภทพัสดุ/Material Type</strong><span>${i.materialType || '-'}</span></div>
+            <div class="view-row"><strong>เลขที่สัญญา/Contract No.</strong><span>${i.contractNo || '-'}</span></div>
             <div class="view-row"><strong>Batch</strong><span>${i.batch === 'N' ? 'New' : i.batch === 'R' ? 'Refurbished' : (i.batch || '-')}</span></div>
-            <div class="view-row"><strong>Brand</strong><span>${i.brand || '-'}</span></div>
-            <div class="view-row"><strong>Model</strong><span>${i.model || '-'}</span></div>
-            <div class="view-row"><strong>Status</strong><span class="insp-status-badge status-${(i.status || 'pending').toLowerCase()}">${i.status || '-'}</span></div>
+            <div class="view-row"><strong>ยี่ห้อ/Brand</strong><span>${i.brand || '-'}</span></div>
+            <div class="view-row"><strong>รุ่น/Model</strong><span>${i.model || '-'}</span></div>
+            <div class="view-row"><strong>สถานะ/Status</strong><span class="insp-status-badge status-${(i.status || 'pending').toLowerCase()}">${i.status || '-'}</span></div>
             <div class="view-row"><strong>Inspector</strong><span>${i.inspectorId || '-'}</span></div>
             <div class="view-row"><strong>Timestamp</strong><span>${i.timestamp || '-'}</span></div>
-            ${i.remarks ? `<div class="view-row full-width"><strong>Remarks</strong><span>${i.remarks}</span></div>` : ''}
+            ${i.remarks ? `<div class="view-row full-width"><strong>หมายเหตุ/Remarks</strong><span>${i.remarks}</span></div>` : ''}
             ${i.managerComment ? `<div class="view-row full-width"><strong>Manager Comment</strong><span>${i.managerComment}</span></div>` : ''}
         </div>
         ${(i.imageOverview || i.imageNameplate) ? `<div class="view-photos">
-            ${i.imageOverview ? `<div class="view-photo"><label>Overview Photo</label><img src="${i.imageOverview}" alt="Overview" /></div>` : ''}
-            ${i.imageNameplate ? `<div class="view-photo"><label>Nameplate Photo</label><img src="${i.imageNameplate}" alt="Nameplate" /></div>` : ''}
+            ${i.imageOverview ? `<div class="view-photo"><label>รูปถ่ายทั้งตัว/Overview Photo</label><img src="${i.imageOverview}" alt="Overview" /></div>` : ''}
+            ${i.imageNameplate ? `<div class="view-photo"><label>รูปถ่าย PEA No./แผ่นป้าย/Nameplate Photo</label><img src="${i.imageNameplate}" alt="Nameplate" /></div>` : ''}
         </div>` : ''}`;
     const ov = document.getElementById('viewOverlay');
     ov.style.display = 'flex';

@@ -288,9 +288,9 @@ function inspectedCardHTML(i) {
         </div>
         <div class="insp-card-body">
             <div class="insp-detail"><strong>Serial:</strong> ${i.serialNo || '-'}</div>
-            <div class="insp-detail"><strong>Contract:</strong> ${i.contractNo || '-'}</div>
-            <div class="insp-detail"><strong>Brand:</strong> ${i.brand || '-'}</div>
-            <div class="insp-detail"><strong>Batch:</strong> ${i.batch === 'N' ? 'New' : 'Refurb'}</div>
+            <div class="insp-detail"><strong>เลขที่สัญญา/Contract:</strong> ${i.contractNo || '-'}</div>
+            <div class="insp-detail"><strong>ยี่ห้อ/Brand:</strong> ${i.brand || '-'}</div>
+            <div class="insp-detail"><strong>Batch:</strong> ${i.batch === 'N' ? 'New' : 'Refurbished'}</div>
         </div>
         ${i.remarks ? `<div class="insp-remarks"><i data-lucide="message-square"></i> ${i.remarks}</div>` : ''}
         <div class="insp-card-footer">
@@ -317,12 +317,12 @@ async function viewInspection(id) {
             <div class="view-row"><strong>Serial No.</strong><span>${i.serialNo || '-'}</span></div>
             <div class="view-row"><strong>Warehouse</strong><span>${i.warehouseCode || '-'}</span></div>
             <div class="view-row"><strong>SLoc</strong><span>${i.sloc || '-'}</span></div>
-            <div class="view-row"><strong>Material Type</strong><span>${i.materialType || '-'}</span></div>
+            <div class="view-row"><strong>ประเภทพัสดุ/Material Type</strong><span>${i.materialType || '-'}</span></div>
             <div class="view-row"><strong>เลขที่สัญญา/Contract No.</strong><span>${i.contractNo || '-'}</span></div>
             <div class="view-row"><strong>Batch</strong><span>${i.batch === 'N' ? 'New' : i.batch === 'R' ? 'Refurbished' : (i.batch || '-')}</span></div>
             <div class="view-row"><strong>ยี่ห้อ/Brand</strong><span>${i.brand || '-'}</span></div>
             <div class="view-row"><strong>รุ่น/Model</strong><span>${i.model || '-'}</span></div>
-            <div class="view-row"><strong>Status</strong><span class="insp-status-badge status-${(i.status || 'pending').toLowerCase()}">${i.status || '-'}</span></div>
+            <div class="view-row"><strong>สถานะ/Status</strong><span class="insp-status-badge status-${(i.status || 'pending').toLowerCase()}">${i.status || '-'}</span></div>
             <div class="view-row"><strong>Inspector</strong><span>${i.inspectorId || '-'}</span></div>
             <div class="view-row"><strong>Timestamp</strong><span>${i.timestamp || '-'}</span></div>
             ${i.remarks ? `<div class="view-row full-width"><strong>หมายเหตุ/Remarks</strong><span>${i.remarks}</span></div>` : ''}
