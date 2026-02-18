@@ -444,7 +444,12 @@ function setupFormHandlers() {
         if (hasImages) {
             const inspId = editId || r.id;
             if (inspId) {
-                const imgPayload = { id: inspId };
+                const imgPayload = {
+                    id: inspId,
+                    plant: whCode,
+                    sloc: sloc || '',
+                    isEdit: !!editId
+                };
                 if (imgOverview && imgOverview.startsWith('data:image')) imgPayload.imageOverview = imgOverview;
                 if (imgNameplate && imgNameplate.startsWith('data:image')) imgPayload.imageNameplate = imgNameplate;
                 showUploadProgress();
