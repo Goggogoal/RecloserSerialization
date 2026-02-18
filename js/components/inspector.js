@@ -402,13 +402,17 @@ function setupFormHandlers() {
     // Photos
     ['photoOverview', 'photoNameplate'].forEach(setupPhoto);
 
-    // Submit ★ with confirm
+    // Submit ★ two-phase: text first (instant), images in background
     document.getElementById('inspForm')?.addEventListener('submit', async e => {
         e.preventDefault();
         if (!confirm('Are you sure you want to save this inspection?')) return;
 
         const whCode = document.getElementById('inspWarehouseSelect')?.value;
         const sloc = document.getElementById('inspSLocSelect')?.value;
+        const imgOverview = document.querySelector('#photoOverview .photo-preview img')?.src || '';
+        const imgNameplate = document.querySelector('#photoNameplate .photo-preview img')?.src || '';
+        const hasImages = (imgOverview && imgOverview.startsWith('data:image')) || (imgNameplate && imgNameplate.startsWith('data:image'));
+
         const data = {
             inspectorId: store.get('user')?.username,
             warehouseCode: whCode,
@@ -420,16 +424,38 @@ function setupFormHandlers() {
             batch: document.getElementById('inspBatch').value,
             brand: document.getElementById('inspBrand').value.trim(),
             model: document.getElementById('inspModel').value.trim(),
-            remarks: document.getElementById('inspRemarks').value.trim(),
-            imageOverview: document.querySelector('#photoOverview .photo-preview img')?.src || '',
-            imageNameplate: document.querySelector('#photoNameplate .photo-preview img')?.src || ''
+            remarks: document.getElementById('inspRemarks').value.trim()
         };
+
         const editId = document.getElementById('inspForm')?.dataset.editId;
+
+        // Phase 1: Save text data (fast)
         const r = editId
             ? await api.call('updateInspection', { id: editId, updates: data })
             : await api.call('submitInspection', data);
-        if (r.success) { closeModal(ov); showToast('Saved!', 'success'); setTimeout(loadList, 500); }
-        else showToast(r.message || 'Error', 'error');
+
+        if (!r.success) { showToast(r.message || 'Error', 'error'); return; }
+
+        closeModal(ov);
+        showToast('Saved!', 'success');
+        setTimeout(loadList, 500);
+
+        // Phase 2: Upload images in background (non-blocking)
+        if (hasImages) {
+            const inspId = editId || r.id;
+            if (inspId) {
+                const imgPayload = { id: inspId };
+                if (imgOverview && imgOverview.startsWith('data:image')) imgPayload.imageOverview = imgOverview;
+                if (imgNameplate && imgNameplate.startsWith('data:image')) imgPayload.imageNameplate = imgNameplate;
+                showUploadProgress();
+                api.call('uploadImages', imgPayload).then(imgR => {
+                    hideUploadProgress();
+                    if (imgR.success) showToast('Photos uploaded ✓', 'success');
+                    else showToast('Photo upload failed', 'error');
+                    loadList();
+                }).catch(() => { hideUploadProgress(); showToast('Photo upload failed', 'error'); });
+            }
+        }
     });
 }
 
@@ -502,4 +528,31 @@ function showToast(msg, type = 'info') {
     document.body.appendChild(t); if (window.lucide) lucide.createIcons();
     requestAnimationFrame(() => t.classList.add('visible'));
     setTimeout(() => { t.classList.remove('visible'); setTimeout(() => t.remove(), 300); }, 3000);
+}
+
+function showUploadProgress() {
+    document.getElementById('uploadProgress')?.remove();
+    const el = document.createElement('div');
+    el.id = 'uploadProgress';
+    el.style.cssText = 'position:fixed;bottom:24px;right:24px;background:var(--card-bg,#fff);border-radius:12px;padding:12px 20px;box-shadow:0 4px 20px rgba(0,0,0,0.15);z-index:10000;display:flex;align-items:center;gap:12px;font-size:0.85rem;color:var(--text-primary,#333);min-width:220px;';
+    el.innerHTML = `
+        <div style="flex:1;">
+            <div style="margin-bottom:6px;font-weight:600;">📷 Uploading photos...</div>
+            <div style="height:4px;background:#e0e0e0;border-radius:2px;overflow:hidden;">
+                <div style="height:100%;background:linear-gradient(90deg,var(--primary,#1565c0),var(--primary-light,#42a5f5));border-radius:2px;animation:uploadPulse 1.5s ease-in-out infinite;width:100%;"></div>
+            </div>
+        </div>`;
+    // Add animation keyframes if not exists
+    if (!document.getElementById('uploadAnimStyle')) {
+        const style = document.createElement('style');
+        style.id = 'uploadAnimStyle';
+        style.textContent = '@keyframes uploadPulse{0%{opacity:0.4;transform:translateX(-60%)}50%{opacity:1;transform:translateX(0)}100%{opacity:0.4;transform:translateX(60%)}}';
+        document.head.appendChild(style);
+    }
+    document.body.appendChild(el);
+}
+
+function hideUploadProgress() {
+    const el = document.getElementById('uploadProgress');
+    if (el) { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(() => el.remove(), 300); }
 }
