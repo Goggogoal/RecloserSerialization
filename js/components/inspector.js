@@ -460,11 +460,39 @@ function setupPhoto(id) {
     dz.addEventListener('click', (e) => { if (e.target === inp) return; inp.click(); });
     dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
     dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
-    dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dragover'); if (e.dataTransfer.files.length) readImg(e.dataTransfer.files[0]); });
+    dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dragover'); if (e.dataTransfer.files.length) compressImg(e.dataTransfer.files[0]); });
     inp.addEventListener('click', e => e.stopPropagation());
-    inp.addEventListener('change', () => { if (inp.files.length) readImg(inp.files[0]); });
+    inp.addEventListener('change', () => { if (inp.files.length) compressImg(inp.files[0]); });
     rm?.addEventListener('click', (e) => { e.stopPropagation(); img.src = ''; pv.style.display = 'none'; dz.style.display = 'flex'; inp.value = ''; });
-    function readImg(f) { if (!f.type.startsWith('image/')) return; const r = new FileReader(); r.onload = e => { img.src = e.target.result; pv.style.display = 'block'; dz.style.display = 'none'; }; r.readAsDataURL(f); }
+
+    function compressImg(f) {
+        if (!f.type.startsWith('image/')) return;
+        const MAX_WIDTH = 1024;
+        const TARGET_BYTES = 300 * 1024; // 300KB
+        const reader = new FileReader();
+        reader.onload = e => {
+            const tempImg = new Image();
+            tempImg.onload = () => {
+                const canvas = document.createElement('canvas');
+                let w = tempImg.width, h = tempImg.height;
+                if (w > MAX_WIDTH) { h = Math.round(h * MAX_WIDTH / w); w = MAX_WIDTH; }
+                canvas.width = w; canvas.height = h;
+                canvas.getContext('2d').drawImage(tempImg, 0, 0, w, h);
+                let quality = 0.7;
+                let dataUrl = canvas.toDataURL('image/jpeg', quality);
+                // Reduce quality if still over 300KB
+                while (dataUrl.length > TARGET_BYTES * 1.37 && quality > 0.3) {
+                    quality -= 0.1;
+                    dataUrl = canvas.toDataURL('image/jpeg', quality);
+                }
+                img.src = dataUrl;
+                pv.style.display = 'block';
+                dz.style.display = 'none';
+            };
+            tempImg.src = e.target.result;
+        };
+        reader.readAsDataURL(f);
+    }
 }
 
 function showToast(msg, type = 'info') {
