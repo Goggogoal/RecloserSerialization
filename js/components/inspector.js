@@ -78,6 +78,10 @@ function renderFormModal() {
                         <div class="photo-upload" id="photoNameplate"><div class="photo-dropzone" data-field="imageNameplate"><i data-lucide="image"></i><p>Click or drag</p><input type="file" accept="image/*" class="photo-input" /></div>
                         <div class="photo-preview" style="display:none;"><img src="" alt="Nameplate" /><button type="button" class="photo-remove"><i data-lucide="trash-2"></i></button></div></div></div>
                 </div>
+                <div class="form-row">
+                    <div class="form-group"><label for="inspInstructorName">ชื่อผู้ตรวจ/Inspector Name <span class="required">*</span></label><input type="text" id="inspInstructorName" placeholder="Enter inspector name" required /></div>
+                    <div class="form-group"><label for="inspPhone">เบอร์โทร/Phone <span class="required">*</span></label><input type="tel" id="inspPhone" placeholder="e.g. 081-234-5678" required /></div>
+                </div>
                 <div class="form-group"><label for="inspRemarks">หมายเหตุ/Remarks</label><textarea id="inspRemarks" rows="2" placeholder="Notes..."></textarea></div>
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary" id="inspFormCancel">Cancel</button>
@@ -224,6 +228,14 @@ async function loadList() {
     const pendingCount = Math.max(0, totalStock - doneCount);
     const pct = totalStock > 0 ? Math.round(doneCount / totalStock * 100) : 0;
 
+    // Separate stock and inspections by batch
+    const stockN = stockItems.filter(m => m.batch === 'N').reduce((s, m) => s + m.qty, 0);
+    const stockR = stockItems.filter(m => m.batch === 'R').reduce((s, m) => s + m.qty, 0);
+    const doneN = inspections.filter(i => i.batch === 'N').length;
+    const doneR = inspections.filter(i => i.batch === 'R').length;
+    const pendingN = Math.max(0, stockN - doneN);
+    const pendingR = Math.max(0, stockR - doneR);
+
     const slocLabel = sloc ? ` / ${sloc}` : '';
 
     // Build HTML
@@ -240,10 +252,16 @@ async function loadList() {
         <h4 class="list-section-title"><i data-lucide="check-circle"></i> Inspected Items (${doneCount})</h4>
         <div class="inspection-cards">${inspections.map(i => inspectedCardHTML(i)).join('')}</div>` : ''}
 
-        ${pendingCount > 0 ? `
-        <h4 class="list-section-title pending-title"><i data-lucide="clock"></i> Pending Items (${pendingCount})</h4>
+        ${pendingN > 0 ? `
+        <h4 class="list-section-title pending-title"><i data-lucide="clock"></i> Pending — New (${pendingN})</h4>
         <div class="pending-items-list">
-            ${generatePendingSlots(pendingCount, doneCount)}
+            ${generatePendingSlots(pendingN, doneN, 'N')}
+        </div>` : ''}
+
+        ${pendingR > 0 ? `
+        <h4 class="list-section-title pending-title"><i data-lucide="clock"></i> Pending — Refurbished (${pendingR})</h4>
+        <div class="pending-items-list">
+            ${generatePendingSlots(pendingR, doneR, 'R')}
         </div>` : ''}
 
         ${totalStock === 0 ? `<div class="empty-state"><i data-lucide="inbox"></i><p>No stock found for this selection</p></div>` : ''}
@@ -257,7 +275,8 @@ async function loadList() {
     list.querySelectorAll('.btn-fill-pending').forEach(b => b.addEventListener('click', () => openForm(null)));
 }
 
-function generatePendingSlots(count, offset) {
+function generatePendingSlots(count, offset, batch) {
+    const batchLabel = batch === 'N' ? 'New' : 'Refurbished';
     // Show up to 50 pending slots with "show more" for performance
     const showCount = Math.min(count, 50);
     let html = '';
@@ -265,7 +284,7 @@ function generatePendingSlots(count, offset) {
         html += `
         <div class="pending-item">
             <div class="pending-item-info">
-                <span class="pending-item-number">#${offset + i + 1}</span>
+                <span class="pending-item-number">#${offset + i + 1} (${batchLabel})</span>
                 <span class="insp-status-badge status-pending">Pending</span>
             </div>
             <button class="btn btn-sm btn-primary btn-fill-pending" title="Fill inspection data">
@@ -324,6 +343,8 @@ async function viewInspection(id) {
             <div class="view-row"><strong>รุ่น/Model</strong><span>${i.model || '-'}</span></div>
             <div class="view-row"><strong>สถานะ/Status</strong><span class="insp-status-badge status-${(i.status || 'pending').toLowerCase()}">${i.status || '-'}</span></div>
             <div class="view-row"><strong>Inspector</strong><span>${i.inspectorId || '-'}</span></div>
+            <div class="view-row"><strong>ชื่อผู้ตรวจ/Inspector Name</strong><span>${i.instructorName || '-'}</span></div>
+            <div class="view-row"><strong>เบอร์โทร/Phone</strong><span>${i.phone || '-'}</span></div>
             <div class="view-row"><strong>Timestamp</strong><span>${i.timestamp || '-'}</span></div>
             ${i.remarks ? `<div class="view-row full-width"><strong>หมายเหตุ/Remarks</strong><span>${i.remarks}</span></div>` : ''}
             ${i.managerComment ? `<div class="view-row full-width"><strong>Manager Comment</strong><span>${i.managerComment}</span></div>` : ''}
@@ -367,6 +388,8 @@ async function openForm(editId = null) {
             document.getElementById('inspBrand').value = ins.brand || '';
             document.getElementById('inspModel').value = ins.model || '';
             document.getElementById('inspRemarks').value = ins.remarks || '';
+            document.getElementById('inspInstructorName').value = ins.instructorName || '';
+            document.getElementById('inspPhone').value = ins.phone || '';
             if (ins.imageOverview) {
                 const pv = document.querySelector('#photoOverview .photo-preview');
                 const img = pv?.querySelector('img');
@@ -424,7 +447,9 @@ function setupFormHandlers() {
             batch: document.getElementById('inspBatch').value,
             brand: document.getElementById('inspBrand').value.trim(),
             model: document.getElementById('inspModel').value.trim(),
-            remarks: document.getElementById('inspRemarks').value.trim()
+            remarks: document.getElementById('inspRemarks').value.trim(),
+            instructorName: document.getElementById('inspInstructorName').value.trim(),
+            phone: document.getElementById('inspPhone').value.trim()
         };
 
         const editId = document.getElementById('inspForm')?.dataset.editId;
