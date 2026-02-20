@@ -272,7 +272,7 @@ async function loadList() {
     // Bind events
     list.querySelectorAll('.btn-edit-inspection').forEach(b => b.addEventListener('click', () => openForm(b.dataset.id)));
     list.querySelectorAll('.btn-view-inspection').forEach(b => b.addEventListener('click', () => viewInspection(b.dataset.id)));
-    list.querySelectorAll('.btn-fill-pending').forEach(b => b.addEventListener('click', () => openForm(null)));
+    list.querySelectorAll('.btn-fill-pending').forEach(b => b.addEventListener('click', () => openForm(null, b.dataset.batch)));
 }
 
 function generatePendingSlots(count, offset, batch) {
@@ -287,7 +287,7 @@ function generatePendingSlots(count, offset, batch) {
                 <span class="pending-item-number">#${offset + i + 1} (${batchLabel})</span>
                 <span class="insp-status-badge status-pending">Pending</span>
             </div>
-            <button class="btn btn-sm btn-primary btn-fill-pending" title="Fill inspection data">
+            <button class="btn btn-sm btn-primary btn-fill-pending" data-batch="${batch}" title="Fill inspection data">
                 <i data-lucide="edit-2"></i> Fill Data
             </button>
         </div>`;
@@ -368,13 +368,14 @@ function setupViewHandlers() {
 // ───────────────────────────────────────────────
 // Form (Add / Edit)
 // ───────────────────────────────────────────────
-async function openForm(editId = null) {
+async function openForm(editId = null, defaultBatch = null) {
     const ov = document.getElementById('inspFormOverlay'), form = document.getElementById('inspForm');
     form.reset();
     form.dataset.editId = editId || '';
     document.querySelectorAll('.photo-preview').forEach(p => { p.style.display = 'none'; p.querySelector('img').src = ''; });
     document.querySelectorAll('.photo-dropzone').forEach(d => d.style.display = 'flex');
     document.getElementById('autoFillIndicator').style.display = 'none';
+    if (defaultBatch) document.getElementById('inspBatch').value = defaultBatch;
 
     if (editId) {
         document.getElementById('inspFormTitle').innerHTML = '<i data-lucide="edit"></i> Edit';
