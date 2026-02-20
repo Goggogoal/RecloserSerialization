@@ -228,11 +228,11 @@ async function loadList() {
     const pendingCount = Math.max(0, totalStock - doneCount);
     const pct = totalStock > 0 ? Math.round(doneCount / totalStock * 100) : 0;
 
-    // Separate stock and inspections by batch
-    const stockN = stockItems.filter(m => m.batch === 'N').reduce((s, m) => s + m.qty, 0);
+    // Separate stock and inspections by batch ('R' = Refurbished, everything else = New)
     const stockR = stockItems.filter(m => m.batch === 'R').reduce((s, m) => s + m.qty, 0);
-    const doneN = inspections.filter(i => i.batch === 'N').length;
+    const stockN = totalStock - stockR;
     const doneR = inspections.filter(i => i.batch === 'R').length;
+    const doneN = doneCount - doneR;
     const pendingN = Math.max(0, stockN - doneN);
     const pendingR = Math.max(0, stockR - doneR);
 
