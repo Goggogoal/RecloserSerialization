@@ -464,7 +464,7 @@ function setupFormHandlers() {
 
         closeModal(ov);
         showToast('Saved!', 'success');
-        setTimeout(loadList, 500);
+        setTimeout(loadList, 1500);
 
         // Phase 2: Upload images in background (non-blocking)
         if (hasImages) {
