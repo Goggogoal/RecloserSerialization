@@ -32,8 +32,8 @@ export function renderNavbar() {
                     </svg>
                 </div>
                 <div class="navbar-title">
-                    <span class="navbar-title-main">PEA-Serialzation</span>
-                    <span class="navbar-title-sub">Road to Recloser 22kV Serialzation</span>
+                    <span class="navbar-title-main">PEA-Serialization</span>
+                    <span class="navbar-title-sub">Road to Recloser 22kV Serialization</span>
                 </div>
             </div>
             <div class="navbar-links" id="navbarLinks">
