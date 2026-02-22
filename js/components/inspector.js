@@ -62,13 +62,19 @@ function renderFormModal() {
                         <input type="text" id="inspSerialNo" placeholder="Enter serial number" required /></div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group"><label for="inspContractNo">เลขที่สัญญา/Contract No.</label><input type="text" id="inspContractNo" placeholder="Auto-filled or manual" /></div>
+                    <div class="form-group"><label for="inspContractNo">เลขที่สัญญา/Contract No.</label>
+                        <input type="text" id="inspContractNo" list="contractList" placeholder="Select or type" />
+                        <datalist id="contractList"></datalist></div>
                     <div class="form-group"><label for="inspBatch">Batch <span class="required">*</span></label>
                         <select id="inspBatch" required><option value="N">N - New</option><option value="R">R - Refurbished</option></select></div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group"><label for="inspBrand">ยี่ห้อ/Brand</label><input type="text" id="inspBrand" placeholder="Auto-filled or manual" /></div>
-                    <div class="form-group"><label for="inspModel">รุ่น/Model</label><input type="text" id="inspModel" placeholder="Enter model" /></div>
+                    <div class="form-group"><label for="inspBrand">ยี่ห้อ/Brand</label>
+                        <input type="text" id="inspBrand" list="brandList" placeholder="Select or type" />
+                        <datalist id="brandList"></datalist></div>
+                    <div class="form-group"><label for="inspModel">รุ่น/Model</label>
+                        <input type="text" id="inspModel" list="modelList" placeholder="Select or type" />
+                        <datalist id="modelList"></datalist></div>
                 </div>
                 <div class="form-row">
                     <div class="form-group"><label>รูปถ่ายทั้งตัว/Overview Photo</label>
@@ -168,11 +174,12 @@ export async function initInspector() {
             document.querySelectorAll('.material-tab').forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
             store.set('selectedMaterialType', tab.dataset.type);
+            populateDataLists();
             loadList();
         });
     });
     const firstTab = document.querySelector('.material-tab');
-    if (firstTab) { firstTab.classList.add('active'); store.set('selectedMaterialType', firstTab.dataset.type); }
+    if (firstTab) { firstTab.classList.add('active'); store.set('selectedMaterialType', firstTab.dataset.type); populateDataLists(); }
 
     setupFormHandlers();
     setupViewHandlers();
@@ -186,15 +193,54 @@ function populateSLocs(whCode) {
     if (!whCode) return;
     // Derive SLocs from MB52 data (source of truth for stock)
     const mb52 = store.get('mb52') || [];
+    const warehouses = store.get('warehouses') || [];
     const slocs = [...new Set(mb52.filter(m => m.whCode === whCode && m.sloc).map(m => m.sloc))];
     slocs.forEach(sl => {
         const o = document.createElement('option');
         o.value = sl;
-        o.textContent = sl;
+        // Look up SLoc name from warehouse master data
+        const whEntry = warehouses.find(w => w.code === whCode && w.sloc === sl);
+        const slocName = whEntry?.slocName || '';
+        o.textContent = slocName ? `${slocName} | ${sl}` : sl;
         slocSelect.appendChild(o);
     });
     const preSloc = store.get('selectedSLoc');
     if (preSloc && slocs.includes(preSloc)) slocSelect.value = preSloc;
+}
+
+// ───────────────────────────────────────────────
+// Populate Contract / Brand / Model datalists filtered by material type
+// ───────────────────────────────────────────────
+const MAT_TYPE_TO_EQUIP = { 'Recloser': 'Recloser', 'Control Cabinet': 'Control Cabinet', 'PT': 'PT' };
+
+function populateDataLists() {
+    const matType = store.get('selectedMaterialType');
+    const contracts = store.get('contracts') || [];
+    // Filter contracts by equipType matching current materialType
+    const equipKey = MAT_TYPE_TO_EQUIP[matType] || matType;
+    const filtered = contracts.filter(c => {
+        const et = (c.equipType || '').toLowerCase();
+        return et.includes(equipKey.toLowerCase());
+    });
+
+    // Contract No datalist
+    const contractDL = document.getElementById('contractList');
+    if (contractDL) {
+        const uniqueContracts = [...new Set(filtered.map(c => c.contractNo).filter(Boolean))];
+        contractDL.innerHTML = uniqueContracts.map(c => `<option value="${c}">`).join('');
+    }
+    // Brand datalist
+    const brandDL = document.getElementById('brandList');
+    if (brandDL) {
+        const uniqueBrands = [...new Set(filtered.map(c => c.brand).filter(Boolean))];
+        brandDL.innerHTML = uniqueBrands.map(b => `<option value="${b}">`).join('');
+    }
+    // Model datalist
+    const modelDL = document.getElementById('modelList');
+    if (modelDL) {
+        const uniqueModels = [...new Set(filtered.map(c => c.model).filter(Boolean))];
+        modelDL.innerHTML = uniqueModels.map(m => `<option value="${m}">`).join('');
+    }
 }
 
 // ───────────────────────────────────────────────

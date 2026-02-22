@@ -43,6 +43,10 @@ export function renderNavbar() {
                         <span>${link.label}</span>
                     </a>
                 `).join('')}
+                <a href="#" class="nav-link mobile-logout-link" id="mobileLogout">
+                    <i data-lucide="log-out"></i>
+                    <span>Logout</span>
+                </a>
             </div>
             <div class="navbar-user">
                 <div class="user-badge">
@@ -76,10 +80,18 @@ export function initNavbar() {
         });
     });
 
-    // Logout button
+    // Logout buttons (desktop + mobile)
     const btnLogout = document.getElementById('btnLogout');
     if (btnLogout) {
         btnLogout.addEventListener('click', () => {
+            auth.logout();
+        });
+    }
+    const mobileLogout = document.getElementById('mobileLogout');
+    if (mobileLogout) {
+        mobileLogout.addEventListener('click', (e) => {
+            e.preventDefault();
+            closeMobileMenu();
             auth.logout();
         });
     }

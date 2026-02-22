@@ -51,7 +51,7 @@ export async function initSLoc() {
                 <div class="sloc-card-title">
                     <i data-lucide="box"></i>
                     <div>
-                        <h4>SLoc: ${sl.sloc}</h4>
+                        <h4>SLoc: ${sl.sloc}${sl.slocName ? ' | ' + sl.slocName : ''}</h4>
                         <span class="wh-code-badge">${wh.code} / ${sl.sloc}</span>
                     </div>
                 </div>
