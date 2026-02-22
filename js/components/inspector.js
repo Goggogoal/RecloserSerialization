@@ -583,6 +583,7 @@ function setupFormHandlers() {
 
         try {
             // Phase 1: Save text data (fast)
+            console.log('Saving inspection:', editId ? 'UPDATE ' + editId : 'NEW', data);
             const r = editId
                 ? await api.call('updateInspection', { id: editId, updates: data })
                 : await api.call('submitInspection', data);
@@ -645,8 +646,8 @@ function autoFill(peaNo) {
         const sm = c.peaStart.match(/^(PEA-\w+-?)(\d+)$/i), em = c.peaEnd.match(/^(PEA-\w+-?)(\d+)$/i);
         if (!sm || !em) continue;
         if (pfx === sm[1].toUpperCase() && num >= parseInt(sm[2], 10) && num <= parseInt(em[2], 10)) {
-            document.getElementById('inspContractNo').value = c.contractNo;
-            document.getElementById('inspBrand').value = c.brand || '';
+            setSelectOrOther('inspContractSel', 'inspContractNo', c.contractNo);
+            setSelectOrOther('inspBrandSel', 'inspBrand', c.brand || '');
             ind.style.display = 'flex';
             ind.innerHTML = `<i data-lucide="zap"></i> ${c.contractNo} (${c.equipType})`;
             if (window.lucide) lucide.createIcons();
