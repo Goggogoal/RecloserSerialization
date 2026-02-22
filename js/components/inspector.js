@@ -64,18 +64,18 @@ function renderFormModal() {
                 </div>
                 <div class="form-row">
                     <div class="form-group"><label for="inspContractNo">เลขที่สัญญา/Contract No.</label>
-                        <input type="text" id="inspContractNo" list="contractList" placeholder="Select or type" />
-                        <datalist id="contractList"></datalist></div>
+                        <select id="inspContractSel" class="filter-select"><option value="">-- Select --</option><option value="__other__">Other (type manually)</option></select>
+                        <input type="text" id="inspContractNo" placeholder="Type contract no." style="display:none;margin-top:6px" /></div>
                     <div class="form-group"><label for="inspBatch">Batch <span class="required">*</span></label>
                         <select id="inspBatch" required><option value="N">N - New</option><option value="R">R - Refurbished</option></select></div>
                 </div>
                 <div class="form-row">
                     <div class="form-group"><label for="inspBrand">ยี่ห้อ/Brand</label>
-                        <input type="text" id="inspBrand" list="brandList" placeholder="Select or type" />
-                        <datalist id="brandList"></datalist></div>
+                        <select id="inspBrandSel" class="filter-select"><option value="">-- Select --</option><option value="__other__">Other (type manually)</option></select>
+                        <input type="text" id="inspBrand" placeholder="Type brand" style="display:none;margin-top:6px" /></div>
                     <div class="form-group"><label for="inspModel">รุ่น/Model</label>
-                        <input type="text" id="inspModel" list="modelList" placeholder="Select or type" />
-                        <datalist id="modelList"></datalist></div>
+                        <select id="inspModelSel" class="filter-select"><option value="">-- Select --</option><option value="__other__">Other (type manually)</option></select>
+                        <input type="text" id="inspModel" placeholder="Type model" style="display:none;margin-top:6px" /></div>
                 </div>
                 <div class="form-row">
                     <div class="form-group"><label>รูปถ่ายทั้งตัว/Overview Photo</label>
@@ -224,23 +224,29 @@ function populateDataLists() {
         return et.includes(equipKey.toLowerCase());
     });
 
-    // Contract No datalist
-    const contractDL = document.getElementById('contractList');
-    if (contractDL) {
+    // Contract No select
+    const contractSel = document.getElementById('inspContractSel');
+    if (contractSel) {
         const uniqueContracts = [...new Set(filtered.map(c => c.contractNo).filter(Boolean))];
-        contractDL.innerHTML = uniqueContracts.map(c => `<option value="${c}">`).join('');
+        contractSel.innerHTML = '<option value="">-- Select --</option>' +
+            uniqueContracts.map(c => `<option value="${c}">${c}</option>`).join('') +
+            '<option value="__other__">Other (type manually)</option>';
     }
-    // Brand datalist
-    const brandDL = document.getElementById('brandList');
-    if (brandDL) {
+    // Brand select
+    const brandSel = document.getElementById('inspBrandSel');
+    if (brandSel) {
         const uniqueBrands = [...new Set(filtered.map(c => c.brand).filter(Boolean))];
-        brandDL.innerHTML = uniqueBrands.map(b => `<option value="${b}">`).join('');
+        brandSel.innerHTML = '<option value="">-- Select --</option>' +
+            uniqueBrands.map(b => `<option value="${b}">${b}</option>`).join('') +
+            '<option value="__other__">Other (type manually)</option>';
     }
-    // Model datalist
-    const modelDL = document.getElementById('modelList');
-    if (modelDL) {
+    // Model select
+    const modelSel = document.getElementById('inspModelSel');
+    if (modelSel) {
         const uniqueModels = [...new Set(filtered.map(c => c.model).filter(Boolean))];
-        modelDL.innerHTML = uniqueModels.map(m => `<option value="${m}">`).join('');
+        modelSel.innerHTML = '<option value="">-- Select --</option>' +
+            uniqueModels.map(m => `<option value="${m}">${m}</option>`).join('') +
+            '<option value="__other__">Other (type manually)</option>';
     }
 }
 
@@ -431,10 +437,10 @@ async function openForm(editId = null, defaultBatch = null) {
             const ins = r.inspection;
             document.getElementById('inspPeaNo').value = ins.peaNo || '';
             document.getElementById('inspSerialNo').value = ins.serialNo || '';
-            document.getElementById('inspContractNo').value = ins.contractNo || '';
+            setSelectOrOther('inspContractSel', 'inspContractNo', ins.contractNo || '');
             document.getElementById('inspBatch').value = ins.batch || 'N';
-            document.getElementById('inspBrand').value = ins.brand || '';
-            document.getElementById('inspModel').value = ins.model || '';
+            setSelectOrOther('inspBrandSel', 'inspBrand', ins.brand || '');
+            setSelectOrOther('inspModelSel', 'inspModel', ins.model || '');
             document.getElementById('inspRemarks').value = ins.remarks || '';
             document.getElementById('inspInstructorName').value = ins.instructorName || '';
             document.getElementById('inspPhone').value = ins.phone || '';
@@ -475,6 +481,53 @@ async function openForm(editId = null, defaultBatch = null) {
 
 function closeModal(ov) { ov.classList.remove('visible'); setTimeout(() => ov.style.display = 'none', 300); }
 
+// Helper: toggle between <select> and manual <input> when "Other" is selected
+function setupSelectOther(selId, inputId) {
+    const sel = document.getElementById(selId);
+    const inp = document.getElementById(inputId);
+    if (!sel || !inp) return;
+    sel.addEventListener('change', () => {
+        if (sel.value === '__other__') {
+            inp.style.display = 'block';
+            inp.focus();
+        } else {
+            inp.style.display = 'none';
+            inp.value = '';
+        }
+    });
+}
+
+// Helper: get value from select or manual input
+function getSelectOrOther(selId, inputId) {
+    const sel = document.getElementById(selId);
+    const inp = document.getElementById(inputId);
+    if (sel?.value === '__other__') return (inp?.value || '').trim();
+    return (sel?.value || '').trim();
+}
+
+// Helper: set value into select or fall back to "Other" + input
+function setSelectOrOther(selId, inputId, value) {
+    const sel = document.getElementById(selId);
+    const inp = document.getElementById(inputId);
+    if (!sel || !inp) return;
+    // Try to select the value from dropdown
+    const optionExists = [...sel.options].some(o => o.value === value);
+    if (value && optionExists) {
+        sel.value = value;
+        inp.style.display = 'none';
+        inp.value = '';
+    } else if (value) {
+        // Value not in dropdown — select "Other" and show input
+        sel.value = '__other__';
+        inp.style.display = 'block';
+        inp.value = value;
+    } else {
+        sel.value = '';
+        inp.style.display = 'none';
+        inp.value = '';
+    }
+}
+
 function setupFormHandlers() {
     const ov = document.getElementById('inspFormOverlay');
     document.getElementById('inspFormClose')?.addEventListener('click', () => closeModal(ov));
@@ -487,6 +540,11 @@ function setupFormHandlers() {
 
     // Photos
     ['photoOverview', 'photoNameplate'].forEach(setupPhoto);
+
+    // Select + "Other" toggle for Contract, Brand, Model
+    setupSelectOther('inspContractSel', 'inspContractNo');
+    setupSelectOther('inspBrandSel', 'inspBrand');
+    setupSelectOther('inspModelSel', 'inspModel');
 
     // Submit ★ two-phase: text first (instant), images in background
     document.getElementById('inspForm')?.addEventListener('submit', async e => {
@@ -506,10 +564,10 @@ function setupFormHandlers() {
             materialType: store.get('selectedMaterialType'),
             peaNo: document.getElementById('inspPeaNo').value.trim(),
             serialNo: document.getElementById('inspSerialNo').value.trim(),
-            contractNo: document.getElementById('inspContractNo').value.trim(),
+            contractNo: getSelectOrOther('inspContractSel', 'inspContractNo'),
             batch: document.getElementById('inspBatch').value,
-            brand: document.getElementById('inspBrand').value.trim(),
-            model: document.getElementById('inspModel').value.trim(),
+            brand: getSelectOrOther('inspBrandSel', 'inspBrand'),
+            model: getSelectOrOther('inspModelSel', 'inspModel'),
             remarks: document.getElementById('inspRemarks').value.trim(),
             instructorName: document.getElementById('inspInstructorName').value.trim(),
             phone: String(document.getElementById('inspPhone').value.trim())
@@ -531,7 +589,19 @@ function setupFormHandlers() {
 
             // Phase 2: Upload images in background (non-blocking)
             if (hasImages) {
-                const inspId = editId || r.id;
+                let inspId = editId || r.id;
+                // If ID is missing (response parse fallback), fetch latest to find it
+                if (!inspId) {
+                    try {
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        const listR = await api.call('getInspections', { warehouseCode: whCode, sloc: sloc || undefined, materialType: data.materialType });
+                        if (listR.success && listR.inspections?.length) {
+                            // Find the newest inspection matching our serial number
+                            const match = listR.inspections.reverse().find(i => i.serialNo === data.serialNo && i.peaNo === data.peaNo);
+                            if (match) inspId = match.id;
+                        }
+                    } catch (e) { console.warn('Could not resolve inspection ID for image upload:', e); }
+                }
                 if (inspId) {
                     const imgPayload = {
                         id: inspId,
@@ -548,6 +618,8 @@ function setupFormHandlers() {
                         else showToast('Photo upload failed', 'error');
                         loadList();
                     }).catch(() => { hideUploadProgress(); showToast('Photo upload failed', 'error'); });
+                } else {
+                    showToast('Photos skipped — could not resolve ID', 'warning');
                 }
             }
         } catch (err) {
