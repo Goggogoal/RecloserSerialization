@@ -8,7 +8,7 @@ export const CONFIG = {
 
     // Google Apps Script Web App deployment URL
     // Replace with your actual GAS deployment URL when ready
-    GAS_URL: 'https://script.google.com/macros/s/AKfycbx2ZWudYgMcmlUiSEFD3wcVG5sIlX8_AmJ87RgdU83pVifXdGKG9at6MhxIZ1zoi2p6/exec',
+    GAS_URL: 'https://script.google.com/macros/s/AKfycbxB-S4g_ZNAOOnhQy_W9050C_M4w_3KmSrTbNSsdt56Zev-TYz6hjQ77nKFPPtbzKI/exec',
 
     // App metadata
     APP_NAME: 'PEA-AIMS',
