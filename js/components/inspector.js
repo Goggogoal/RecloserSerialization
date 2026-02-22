@@ -82,7 +82,7 @@ function renderFormModal() {
                         <div class="photo-upload" id="photoOverview"><div class="photo-dropzone" data-field="imageOverview"><i data-lucide="camera"></i><p>Click or drag</p><input type="file" accept="image/*" class="photo-input" /></div>
                         <div class="photo-preview" style="display:none;"><img src="" alt="Overview" /><button type="button" class="photo-remove"><i data-lucide="trash-2"></i></button></div></div></div>
                     <div class="form-group"><label>รูปถ่าย PEA No./แผ่นป้าย/Nameplate Photo</label>
-                        <div class="photo-upload" id="photoNameplate"><div class="photo-dropzone" data-field="imageNameplate"><i data-lucide="image"></i><p>Click or drag</p><input type="file" accept="image/*" class="photo-input" /></div>
+                        <div class="photo-upload" id="photoNameplate"><div class="photo-dropzone" data-field="imageNameplate"><i data-lucide="image"></i><p>Click or drag</p><input type="file" accept="image/*" capture="environment" class="photo-input" /></div>
                         <div class="photo-preview" style="display:none;"><img src="" alt="Nameplate" /><button type="button" class="photo-remove"><i data-lucide="trash-2"></i></button></div></div></div>
                 </div>
                 <div class="form-row">
