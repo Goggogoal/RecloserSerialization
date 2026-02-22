@@ -432,6 +432,8 @@ async function openForm(editId = null, defaultBatch = null) {
 
     if (editId) {
         document.getElementById('inspFormTitle').innerHTML = '<i data-lucide="edit"></i> Edit';
+        // Populate dropdowns FIRST so setSelectOrOther can find matching options
+        populateDataLists();
         const r = await api.call('getInspectionById', { id: editId });
         if (r.success && r.inspection) {
             const ins = r.inspection;
@@ -441,7 +443,12 @@ async function openForm(editId = null, defaultBatch = null) {
             document.getElementById('inspBatch').value = ins.batch || 'N';
             setSelectOrOther('inspBrandSel', 'inspBrand', ins.brand || '');
             setSelectOrOther('inspModelSel', 'inspModel', ins.model || '');
-            document.getElementById('inspRemarks').value = ins.remarks || '';
+            // If rejected, merge manager comment into remarks so user can see it
+            let remarks = ins.remarks || '';
+            if (ins.managerComment && ins.status === 'Rejected') {
+                remarks = remarks ? remarks + '\n[Manager: ' + ins.managerComment + ']' : '[Manager: ' + ins.managerComment + ']';
+            }
+            document.getElementById('inspRemarks').value = remarks;
             document.getElementById('inspInstructorName').value = ins.instructorName || '';
             document.getElementById('inspPhone').value = ins.phone || '';
             if (ins.imageOverview) {
@@ -457,6 +464,8 @@ async function openForm(editId = null, defaultBatch = null) {
         }
     } else {
         document.getElementById('inspFormTitle').innerHTML = '<i data-lucide="plus-circle"></i> Add New';
+        // Populate dropdowns for new entries
+        populateDataLists();
     }
 
     // Show context info (Warehouse / SLoc / MaterialType)
@@ -470,9 +479,6 @@ async function openForm(editId = null, defaultBatch = null) {
         const matType = store.get('selectedMaterialType') || '';
         ctxInfo.innerHTML = `<i data-lucide="info" style="width:14px;height:14px;display:inline;"></i> <strong>${whText}</strong> | SLoc: <strong>${slocText}</strong> | ${matType}`;
     }
-
-    // Populate datalists for current material type
-    populateDataLists();
 
     ov.style.display = 'flex';
     requestAnimationFrame(() => ov.classList.add('visible'));
