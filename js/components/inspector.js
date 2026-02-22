@@ -53,6 +53,7 @@ function renderFormModal() {
                 <h3 id="inspFormTitle"><i data-lucide="plus-circle"></i> Add New Inspection</h3>
                 <button class="modal-close" id="inspFormClose"><i data-lucide="x"></i></button>
             </div>
+            <div class="form-context-info" id="formContextInfo" style="padding:8px 24px;background:var(--surface-alt,#f0f4f8);border-bottom:1px solid var(--border);font-size:0.9rem;color:var(--text-light,#666);"></div>
             <form class="modal-body" id="inspForm">
                 <div class="form-row">
                     <div class="form-group"><label for="inspPeaNo">PEA No. <span class="required">*</span></label>
@@ -452,6 +453,21 @@ async function openForm(editId = null, defaultBatch = null) {
         document.getElementById('inspFormTitle').innerHTML = '<i data-lucide="plus-circle"></i> Add New';
     }
 
+    // Show context info (Warehouse / SLoc / MaterialType)
+    const ctxInfo = document.getElementById('formContextInfo');
+    if (ctxInfo) {
+        const whSel = document.getElementById('inspWarehouseSelect');
+        const slocSel = document.getElementById('inspSLocSelect');
+        const whText = whSel?.options[whSel.selectedIndex]?.text || '';
+        const slocVal = slocSel?.value || 'All';
+        const slocText = slocSel?.options[slocSel.selectedIndex]?.text || slocVal;
+        const matType = store.get('selectedMaterialType') || '';
+        ctxInfo.innerHTML = `<i data-lucide="info" style="width:14px;height:14px;display:inline;"></i> <strong>${whText}</strong> | SLoc: <strong>${slocText}</strong> | ${matType}`;
+    }
+
+    // Populate datalists for current material type
+    populateDataLists();
+
     ov.style.display = 'flex';
     requestAnimationFrame(() => ov.classList.add('visible'));
     if (window.lucide) lucide.createIcons();
@@ -486,7 +502,7 @@ function setupFormHandlers() {
         const data = {
             inspectorId: store.get('user')?.username,
             warehouseCode: whCode,
-            sloc: sloc || '',
+            sloc: String(sloc || ''),
             materialType: store.get('selectedMaterialType'),
             peaNo: document.getElementById('inspPeaNo').value.trim(),
             serialNo: document.getElementById('inspSerialNo').value.trim(),
@@ -496,42 +512,47 @@ function setupFormHandlers() {
             model: document.getElementById('inspModel').value.trim(),
             remarks: document.getElementById('inspRemarks').value.trim(),
             instructorName: document.getElementById('inspInstructorName').value.trim(),
-            phone: document.getElementById('inspPhone').value.trim()
+            phone: String(document.getElementById('inspPhone').value.trim())
         };
 
         const editId = document.getElementById('inspForm')?.dataset.editId;
 
-        // Phase 1: Save text data (fast)
-        const r = editId
-            ? await api.call('updateInspection', { id: editId, updates: data })
-            : await api.call('submitInspection', data);
+        try {
+            // Phase 1: Save text data (fast)
+            const r = editId
+                ? await api.call('updateInspection', { id: editId, updates: data })
+                : await api.call('submitInspection', data);
 
-        if (!r.success) { showToast(r.message || 'Error', 'error'); return; }
+            if (!r.success) { showToast(r.message || 'Error saving', 'error'); return; }
 
-        closeModal(ov);
-        showToast('Saved!', 'success');
-        setTimeout(loadList, 1500);
+            closeModal(ov);
+            showToast('Saved!', 'success');
+            setTimeout(loadList, 1500);
 
-        // Phase 2: Upload images in background (non-blocking)
-        if (hasImages) {
-            const inspId = editId || r.id;
-            if (inspId) {
-                const imgPayload = {
-                    id: inspId,
-                    plant: whCode,
-                    sloc: sloc || '',
-                    isEdit: !!editId
-                };
-                if (imgOverview && imgOverview.startsWith('data:image')) imgPayload.imageOverview = imgOverview;
-                if (imgNameplate && imgNameplate.startsWith('data:image')) imgPayload.imageNameplate = imgNameplate;
-                showUploadProgress();
-                api.call('uploadImages', imgPayload).then(imgR => {
-                    hideUploadProgress();
-                    if (imgR.success) showToast('Photos uploaded ✓', 'success');
-                    else showToast('Photo upload failed', 'error');
-                    loadList();
-                }).catch(() => { hideUploadProgress(); showToast('Photo upload failed', 'error'); });
+            // Phase 2: Upload images in background (non-blocking)
+            if (hasImages) {
+                const inspId = editId || r.id;
+                if (inspId) {
+                    const imgPayload = {
+                        id: inspId,
+                        plant: whCode,
+                        sloc: sloc || '',
+                        isEdit: !!editId
+                    };
+                    if (imgOverview && imgOverview.startsWith('data:image')) imgPayload.imageOverview = imgOverview;
+                    if (imgNameplate && imgNameplate.startsWith('data:image')) imgPayload.imageNameplate = imgNameplate;
+                    showUploadProgress();
+                    api.call('uploadImages', imgPayload).then(imgR => {
+                        hideUploadProgress();
+                        if (imgR.success) showToast('Photos uploaded ✓', 'success');
+                        else showToast('Photo upload failed', 'error');
+                        loadList();
+                    }).catch(() => { hideUploadProgress(); showToast('Photo upload failed', 'error'); });
+                }
             }
+        } catch (err) {
+            console.error('Save error:', err);
+            showToast('Save failed: ' + (err.message || 'Unknown error'), 'error');
         }
     });
 }
