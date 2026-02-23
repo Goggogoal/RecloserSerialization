@@ -510,6 +510,15 @@ button {
     padding: 6px 14px;
 }
 
+.btn-warning {
+    background: #f59e0b;
+    color: #fff;
+}
+
+.btn-warning:hover {
+    background: #d97706;
+}
+
 .btn-outline:hover {
     background: var(--primary);
     color: #fff;
@@ -2619,6 +2628,7 @@ button {
 .photo-dropzone {
     position: relative;
 }
+
 .photo-dropzone .photo-input {
     position: absolute;
     inset: 0;
@@ -2627,4 +2637,71 @@ button {
     opacity: 0;
     cursor: pointer;
     z-index: 2;
+}
+
+/* ============== GHOST ITEMS STYLES ============== */
+.stat-ghost-total {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: #fff;
+}
+
+.stat-ghost-inspected {
+    background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    color: #fff;
+}
+
+.stat-ghost-approved {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: #fff;
+}
+
+.stats-row-ghost {
+    margin-bottom: 1.5rem;
+}
+
+.ghost-wh-card {
+    border-left: 4px solid #f59e0b;
+}
+
+.ghost-badge {
+    background: #f59e0b !important;
+    color: #fff !important;
+    font-size: 0.85rem;
+    padding: 2px 10px;
+    border-radius: 12px;
+}
+
+.ghost-actions-bar {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 1rem;
+}
+
+.manager-comment {
+    font-size: 0.85rem;
+    color: var(--text-light, #666);
+    padding: 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.manager-comment i {
+    width: 14px;
+    height: 14px;
+}
+
+.ghost-page .list-summary {
+    padding: 0.5rem 0;
+    font-size: 0.9rem;
+    color: var(--text-secondary, #666);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.ghost-tab.active {
+    background: #f59e0b;
+    color: #fff;
+    border-color: #f59e0b;
 }

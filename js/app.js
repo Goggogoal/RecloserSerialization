@@ -11,6 +11,7 @@ import { renderSLoc, initSLoc } from './components/sloc-view.js';
 import { renderInspector, initInspector } from './components/inspector.js';
 import { renderManager, initManager } from './components/manager.js';
 import { renderAdmin, initAdmin } from './components/admin.js';
+import { renderGhost, initGhost } from './components/ghost.js';
 
 const app = document.getElementById('app');
 
@@ -20,7 +21,8 @@ const views = {
     sloc: { render: renderSLoc, init: initSLoc },
     inspector: { render: renderInspector, init: initInspector },
     manager: { render: renderManager, init: initManager },
-    admin: { render: renderAdmin, init: initAdmin }
+    admin: { render: renderAdmin, init: initAdmin },
+    ghost: { render: renderGhost, init: initGhost }
 };
 
 async function navigate(viewName) {

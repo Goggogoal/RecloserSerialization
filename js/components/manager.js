@@ -3,6 +3,7 @@
 // ============================================================
 import { store } from '../store.js';
 import { api } from '../services/api.js';
+import { auth } from '../services/auth.js';
 import { CONFIG } from '../config.js';
 
 export function renderManager() {
@@ -92,6 +93,7 @@ async function loadReviews() {
     if (window.lucide) lucide.createIcons();
     list.querySelectorAll('.btn-approve').forEach(b => b.addEventListener('click', () => approveItem(b.dataset.id)));
     list.querySelectorAll('.btn-reject').forEach(b => b.addEventListener('click', () => rejectItem(b.dataset.id)));
+    list.querySelectorAll('.btn-revert').forEach(b => b.addEventListener('click', () => revertItem(b.dataset.id)));
     list.querySelectorAll('.btn-comment').forEach(b => b.addEventListener('click', () => openComment(b.dataset.id)));
     list.querySelectorAll('.btn-view-detail').forEach(b => b.addEventListener('click', () => viewItem(b.dataset.id)));
 }
@@ -120,6 +122,7 @@ function reviewCard(i) {
             <div class="action-btns">
                 <button class="btn btn-sm btn-outline btn-view-detail" data-id="${i.id}" title="View Details"><i data-lucide="eye"></i></button>
                 ${i.status !== 'Approved' ? `<button class="btn btn-sm btn-success btn-approve" data-id="${i.id}" title="Approve"><i data-lucide="check"></i> Approve</button>` : ''}
+                ${i.status === 'Approved' && auth.isAdmin(store.get('user')) ? `<button class="btn btn-sm btn-warning btn-revert" data-id="${i.id}" title="Revert to Inspected"><i data-lucide="undo-2"></i> Revert</button>` : ''}
                 ${i.status !== 'Rejected' && i.status !== 'Approved' ? `<button class="btn btn-sm btn-danger btn-reject" data-id="${i.id}" title="Reject"><i data-lucide="x"></i> Reject</button>` : ''}
                 <button class="btn btn-sm btn-outline btn-comment" data-id="${i.id}" title="Comment"><i data-lucide="message-circle"></i></button>
             </div>
@@ -135,6 +138,10 @@ async function approveItem(id) {
 
 async function rejectItem(id) {
     openComment(id, true);
+}
+
+async function revertItem(id) {
+    openComment(id, false, true);
 }
 
 async function viewItem(id) {
@@ -175,11 +182,11 @@ function setupViewModal() {
     ov?.addEventListener('click', e => { if (e.target === ov) closeModal(ov); });
 }
 
-let _commentId = null, _isReject = false;
-function openComment(id, reject = false) {
-    _commentId = id; _isReject = reject;
+let _commentId = null, _isReject = false, _isRevert = false;
+function openComment(id, reject = false, revert = false) {
+    _commentId = id; _isReject = reject; _isRevert = revert;
     const ov = document.getElementById('commentOverlay');
-    document.getElementById('commentTitle').textContent = reject ? 'Reject — Add Comment' : 'Add Comment';
+    document.getElementById('commentTitle').textContent = reject ? 'Reject — Add Comment' : revert ? 'Revert — Add Comment' : 'Add Comment';
     document.getElementById('mgrComment').value = '';
     ov.style.display = 'flex'; requestAnimationFrame(() => ov.classList.add('visible'));
     if (window.lucide) lucide.createIcons();
@@ -195,10 +202,12 @@ function setupCommentModal() {
     document.getElementById('commentSubmitBtn')?.addEventListener('click', async () => {
         const comment = document.getElementById('mgrComment').value.trim();
         if (_isReject && !confirm('Are you sure you want to reject this inspection?')) return;
+        if (_isRevert && !confirm('Revert this approved item back to Inspected?')) return;
         let r;
         if (_isReject) { r = await api.call('rejectInspection', { id: _commentId, comment: comment || 'Rejected' }); }
+        else if (_isRevert) { r = await api.call('revertInspection', { id: _commentId, comment: comment || 'Reverted by admin' }); }
         else { r = await api.call('updateInspection', { id: _commentId, updates: { managerComment: comment } }); }
-        if (r.success) { closeModal(ov); showToast(_isReject ? 'Rejected' : 'Comment saved', 'success'); loadReviews(); }
+        if (r.success) { closeModal(ov); showToast(_isReject ? 'Rejected' : _isRevert ? 'Reverted to Inspected' : 'Comment saved', 'success'); loadReviews(); }
         else showToast('Error', 'error');
     });
 }

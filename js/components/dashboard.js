@@ -29,6 +29,18 @@ export function renderDashboard() {
         <div class="warehouse-grid" id="warehouseGrid">
             <div class="loading-placeholder"><div class="spinner-large"></div><p>Loading warehouse data...</p></div>
         </div>
+        <!-- Ghost Items Section -->
+        <div class="section-header" style="margin-top:2rem;">
+            <h3><i data-lucide="package-search"></i> Ghost Items (Not in SAP)</h3>
+        </div>
+        <div class="stats-row stats-row-ghost" id="ghostStatsRow">
+            <div class="stat-card stat-ghost-total"><div class="stat-icon"><i data-lucide="package-search"></i></div><div class="stat-content"><span class="stat-value" id="statGhostTotal">--</span><span class="stat-label">Total Ghost</span></div></div>
+            <div class="stat-card stat-ghost-inspected"><div class="stat-icon"><i data-lucide="clipboard-check"></i></div><div class="stat-content"><span class="stat-value" id="statGhostInspected">--</span><span class="stat-label">Inspected</span></div></div>
+            <div class="stat-card stat-ghost-approved"><div class="stat-icon"><i data-lucide="check-circle"></i></div><div class="stat-content"><span class="stat-value" id="statGhostApproved">--</span><span class="stat-label">Approved</span></div></div>
+        </div>
+        <div class="warehouse-grid" id="ghostWarehouseGrid">
+            <div class="loading-placeholder"><div class="spinner-large"></div><p>Loading ghost data...</p></div>
+        </div>
     </div>
     `;
 }
@@ -50,6 +62,21 @@ export async function initDashboard() {
         }
     } catch (err) {
         console.error('Dashboard load error:', err);
+    }
+
+    // Load Ghost stats
+    try {
+        const gResult = await api.call('getGhostStats', { zone: user.zone });
+        if (gResult.success) {
+            animateCounter('statGhostTotal', gResult.total);
+            animateCounter('statGhostInspected', gResult.inspected);
+            animateCounter('statGhostApproved', gResult.approved);
+            renderGhostWarehouseCards(gResult.warehouseStats || []);
+        }
+    } catch (err) {
+        console.error('Ghost stats load error:', err);
+        const ghostGrid = document.getElementById('ghostWarehouseGrid');
+        if (ghostGrid) ghostGrid.innerHTML = `<div class="empty-state"><p>No ghost items yet</p></div>`;
     }
 
     // Search handler
@@ -151,4 +178,51 @@ function getTypeIcon(type) {
         case 'PT': return '🔌';
         default: return '📦';
     }
+}
+
+function renderGhostWarehouseCards(whStats) {
+    const grid = document.getElementById('ghostWarehouseGrid');
+    if (!grid) return;
+    if (!whStats || !whStats.length) {
+        grid.innerHTML = `<div class="empty-state"><i data-lucide="inbox"></i><p>No ghost items yet.</p></div>`;
+        if (window.lucide) lucide.createIcons();
+        return;
+    }
+    grid.innerHTML = whStats.map(wh => `
+        <div class="warehouse-card ghost-wh-card" data-wh-code="${wh.code}">
+            <div class="wh-card-header">
+                <div class="wh-card-title">
+                    <i data-lucide="warehouse"></i>
+                    <div>
+                        <h4>${wh.name}</h4>
+                        <span class="wh-code-badge">${wh.code}</span>
+                    </div>
+                </div>
+                <div class="wh-progress-badge ghost-badge">👻 ${wh.total}</div>
+            </div>
+            <div class="wh-card-body">
+                <div class="wh-type-row">
+                    <div class="wh-type-info"><span class="wh-type-name">Inspected</span></div>
+                    <span class="wh-type-count">${wh.inspected}</span>
+                </div>
+                <div class="wh-type-row">
+                    <div class="wh-type-info"><span class="wh-type-name">Approved</span></div>
+                    <span class="wh-type-count">${wh.approved}</span>
+                </div>
+            </div>
+            <div class="wh-card-footer">
+                <span class="wh-total">${wh.total} ghost items</span>
+                <button class="btn btn-sm btn-outline ghost-view-btn" data-wh-code="${wh.code}" data-wh-name="${wh.name}">
+                    <i data-lucide="arrow-right"></i> View
+                </button>
+            </div>
+        </div>
+    `).join('');
+
+    if (window.lucide) lucide.createIcons();
+    grid.querySelectorAll('.ghost-view-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            store.update({ selectedWarehouse: { code: btn.dataset.whCode, name: btn.dataset.whName }, currentView: 'ghost' });
+        });
+    });
 }

@@ -17,6 +17,7 @@ export function renderNavbar() {
     const navLinks = [];
     navLinks.push({ id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' });
     if (isInspector || isAdmin) navLinks.push({ id: 'inspector', label: 'Inspect', icon: 'clipboard-check' });
+    navLinks.push({ id: 'ghost', label: 'Ghost', icon: 'ghost' });
     if (isManager || isAdmin) navLinks.push({ id: 'manager', label: 'Review', icon: 'check-circle' });
     if (isAdmin) navLinks.push({ id: 'admin', label: 'Admin', icon: 'settings' });
 

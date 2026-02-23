@@ -9,7 +9,9 @@ async function callGAS(action, payload = {}) {
     // Actions that write data — if the request goes through, data is saved
     // even if the response is blocked by CORS redirect
     const writeActions = ['submitInspection', 'updateInspection', 'uploadImages',
-        'approveInspection', 'rejectInspection'];
+        'approveInspection', 'rejectInspection', 'revertInspection',
+        'submitGhost', 'updateGhost', 'uploadGhostImages',
+        'approveGhost', 'rejectGhost', 'revertGhost'];
     try {
         const response = await fetch(CONFIG.GAS_URL, {
             method: 'POST',
