@@ -81,7 +81,7 @@ function renderFormModal() {
                     <div class="form-group"><label>รูปถ่ายทั้งตัว/Overview Photo</label>
                         <div class="photo-upload" id="photoOverview"><div class="photo-dropzone" data-field="imageOverview"><i data-lucide="camera"></i><p>Click or drag</p><input type="file" accept="image/*" class="photo-input" /></div>
                         <div class="photo-preview" style="display:none;"><img src="" alt="Overview" /><button type="button" class="photo-remove"><i data-lucide="trash-2"></i></button></div></div></div>
-                    <div class="form-group"><label>รูปถ่าย PEA No./แผ่นป้าย/Nameplate Photo</label>
+                    <div class="form-group"><label>รูปถ่าย PEA No./แผ่นป้าย/Nameplate Photo <span class="required">*</span></label>
                         <div class="photo-upload" id="photoNameplate"><div class="photo-dropzone" data-field="imageNameplate"><i data-lucide="image"></i><p>Click or drag</p><input type="file" accept="image/*" class="photo-input" /></div>
                         <div class="photo-preview" style="display:none;"><img src="" alt="Nameplate" /><button type="button" class="photo-remove"><i data-lucide="trash-2"></i></button></div></div></div>
                 </div>
@@ -555,6 +555,12 @@ function setupFormHandlers() {
     // Submit ★ two-phase: text first (instant), images in background
     document.getElementById('inspForm')?.addEventListener('submit', async e => {
         e.preventDefault();
+        // Validate required Nameplate photo (check if preview is visible)
+        const npPreview = document.querySelector('#photoNameplate .photo-preview');
+        if (!npPreview || npPreview.style.display === 'none' || npPreview.style.display === '') {
+            showToast('Nameplate Photo is required', 'error');
+            return;
+        }
         if (!confirm('Are you sure you want to save this inspection?')) return;
 
         const whCode = document.getElementById('inspWarehouseSelect')?.value;

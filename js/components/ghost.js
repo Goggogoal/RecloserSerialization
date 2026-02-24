@@ -431,13 +431,19 @@ function setupGhostFormHandlers() {
         const user = store.get('user');
         const editId = e.target.dataset.editId;
 
-        // Validate required photos
+        // Validate required photos (check if preview is visible)
+        const ovPreview = document.querySelector('#ghostPhotoOverview .photo-preview');
+        const npPreview = document.querySelector('#ghostPhotoNameplate .photo-preview');
+        if (!ovPreview || ovPreview.style.display === 'none' || ovPreview.style.display === '') {
+            showToast('Overview Photo is required', 'error'); return;
+        }
+        if (!npPreview || npPreview.style.display === 'none' || npPreview.style.display === '') {
+            showToast('Nameplate Photo is required', 'error'); return;
+        }
+        if (!confirm('Are you sure you want to save this Ghost item?')) return;
+
         const ovImg = document.querySelector('#ghostPhotoOverview .photo-preview img')?.src;
         const npImg = document.querySelector('#ghostPhotoNameplate .photo-preview img')?.src;
-        const hasOverview = ovImg && ovImg !== '' && ovImg !== window.location.href;
-        const hasNameplate = npImg && npImg !== '' && npImg !== window.location.href;
-        if (!hasOverview) { showToast('Overview Photo is required', 'error'); return; }
-        if (!hasNameplate) { showToast('Nameplate Photo is required', 'error'); return; }
 
         const data = {
             inspectorId: user?.username || '',
