@@ -112,7 +112,7 @@ function reviewCard(i) {
                 <div><strong>ยี่ห้อ/Brand:</strong> ${i.brand || '-'}</div>
                 <div><strong>รุ่น/Model:</strong> ${i.model || '-'}</div>
                 <div><strong>Batch:</strong> ${i.batch === 'N' ? 'New' : 'Refurbished'}</div>
-                <div><strong>Inspector:</strong> ${i.inspectorId}</div>
+                <div><strong>ชื่อผู้ตรวจ/Inspector:</strong> ${i.instructorName || '-'}</div>
             </div>
             ${i.remarks ? `<div class="insp-remarks"><i data-lucide="message-square"></i> ${i.remarks}</div>` : ''}
             ${i.managerComment ? `<div class="manager-comment"><i data-lucide="user-check"></i> Manager: ${i.managerComment}</div>` : ''}
@@ -163,6 +163,8 @@ async function viewItem(id) {
             <div class="view-row"><strong>สถานะ/Status</strong><span class="insp-status-badge status-${(i.status || 'pending').toLowerCase()}">${i.status || '-'}</span></div>
             <div class="view-row"><strong>Inspector</strong><span>${i.inspectorId || '-'}</span></div>
             <div class="view-row"><strong>Timestamp</strong><span>${i.timestamp || '-'}</span></div>
+            <div class="view-row"><strong>ชื่อผู้ตรวจ/Inspector Name</strong><span>${i.instructorName || '-'}</span></div>
+            <div class="view-row"><strong>เบอร์โทร/Phone</strong><span>${i.phone || '-'}</span></div>
             ${i.remarks ? `<div class="view-row full-width"><strong>หมายเหตุ/Remarks</strong><span>${i.remarks}</span></div>` : ''}
             ${i.managerComment ? `<div class="view-row full-width"><strong>Manager Comment</strong><span>${i.managerComment}</span></div>` : ''}
         </div>
