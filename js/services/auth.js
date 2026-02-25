@@ -5,6 +5,8 @@
 import { CONFIG } from '../config.js';
 import { store } from '../store.js';
 import { api } from './api.js';
+import { dataCache } from './data-cache.js';
+import { writeQueue } from './write-queue.js';
 
 export const auth = {
     async login(username, password) {
@@ -16,6 +18,14 @@ export const auth = {
                 const user = result.user;
                 sessionStorage.setItem(CONFIG.SESSION_KEY, JSON.stringify(user));
                 store.set('user', user);
+                // Load all data from server BEFORE returning (so dashboard has data)
+                try {
+                    await dataCache.loadAllData();
+                } catch (err) {
+                    console.warn('[Auth] Data load failed, will retry on navigation:', err);
+                }
+                // Process any queued writes from previous sessions
+                writeQueue.processRemaining();
                 store.set('loading', false);
                 return { success: true, user };
             } else {
@@ -31,6 +41,8 @@ export const auth = {
 
     logout() {
         sessionStorage.removeItem(CONFIG.SESSION_KEY);
+        dataCache.clear();
+        writeQueue.clear();
         store.update({
             user: null,
             currentView: 'login',

@@ -4,6 +4,8 @@
 // ============================================================
 import { store } from '../store.js';
 import { api } from '../services/api.js';
+import { dataCache } from '../services/data-cache.js';
+import { writeQueue } from '../services/write-queue.js';
 import { CONFIG } from '../config.js';
 
 const ICONS = { 'Recloser': '⚡', 'Control Cabinet': '🔧', 'PT': '🔌' };
@@ -113,10 +115,8 @@ export async function initInspector() {
     const user = store.get('user');
     if (!user) return;
 
-    if (!(store.get('warehouses') || []).length) {
-        const r = await api.call('getMasterData');
-        if (r.success) store.update({ warehouses: r.warehouses, contracts: r.contracts, equipment: r.equipment, mb52: r.mb52 });
-    }
+    // Master data is already in the store from dataCache.loadAllData() at login
+    // No API call needed here
 
     // Back button
     document.getElementById('inspBackBtn')?.addEventListener('click', () => {
@@ -264,10 +264,9 @@ async function loadList() {
         if (window.lucide) lucide.createIcons();
         return;
     }
-    list.innerHTML = `<div class="loading-placeholder"><div class="spinner-large"></div></div>`;
 
-    // Fetch inspections
-    const result = await api.call('getInspections', { warehouseCode: whCode, sloc: sloc || undefined, materialType: matType });
+    // Read inspections from local cache (instant, no API call)
+    const result = dataCache.getInspections({ warehouseCode: whCode, sloc: sloc || undefined, materialType: matType });
     if (!result.success) { list.innerHTML = `<div class="empty-state error"><p>Failed to load</p></div>`; return; }
 
     const inspections = result.inspections || [];
@@ -379,7 +378,7 @@ function inspectedCardHTML(i) {
 // View Inspection (read-only modal)
 // ───────────────────────────────────────────────
 async function viewInspection(id) {
-    const r = await api.call('getInspectionById', { id });
+    const r = dataCache.getInspectionById(id);
     if (!r.success || !r.inspection) { showToast('Could not load details', 'error'); return; }
     const i = r.inspection;
     const body = document.getElementById('inspViewBody');
@@ -434,7 +433,7 @@ async function openForm(editId = null, defaultBatch = null) {
         document.getElementById('inspFormTitle').innerHTML = '<i data-lucide="edit"></i> Edit';
         // Populate dropdowns FIRST so setSelectOrOther can find matching options
         populateDataLists();
-        const r = await api.call('getInspectionById', { id: editId });
+        const r = dataCache.getInspectionById(editId);
         if (r.success && r.inspection) {
             const ins = r.inspection;
             document.getElementById('inspPeaNo').value = ins.peaNo || '';
@@ -587,33 +586,45 @@ function setupFormHandlers() {
 
         const editId = document.getElementById('inspForm')?.dataset.editId;
 
-        try {
-            // Phase 1: Save text data (fast)
-            console.log('Saving inspection:', editId ? 'UPDATE ' + editId : 'NEW', data);
-            const r = editId
-                ? await api.call('updateInspection', { id: editId, updates: data })
-                : await api.call('submitInspection', data);
+        // ─── Optimistic Update ─────────────────────────
+        // 1. Update local cache immediately (UI reflects change instantly)
+        if (editId) {
+            dataCache.updateInspection(editId, data);
+        } else {
+            dataCache.addInspection(data);
+        }
 
-            if (!r.success) { showToast(r.message || 'Error saving', 'error'); return; }
+        // 2. Close modal and reload list from cache (instant)
+        closeModal(ov);
+        showToast('Saved!', 'success');
+        loadList();
 
-            closeModal(ov);
-            showToast('Saved!', 'success');
-            setTimeout(loadList, 1500);
+        // 3. Queue background write to server (non-blocking)
+        const action = editId ? 'updateInspection' : 'submitInspection';
+        const payload = editId ? { id: editId, updates: data } : data;
+        writeQueue.enqueue(action, payload, {
+            onError: (entry, err) => {
+                showToast('Background save failed — will retry', 'error');
+            }
+        });
 
-            // Phase 2: Upload images in background (non-blocking)
-            if (hasImages) {
-                let inspId = editId || r.id;
-                // If ID is missing (response parse fallback), fetch latest to find it
+        // 4. Upload images in background (non-blocking)
+        if (hasImages) {
+            // For new inspections, we need the real ID from server before uploading
+            // Wait a bit and use a background approach
+            const doImageUpload = async () => {
+                let inspId = editId;
                 if (!inspId) {
+                    // Wait for the write queue to process and get an ID
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                    // Fetch from server to find the real ID
                     try {
-                        await new Promise(resolve => setTimeout(resolve, 2000));
                         const listR = await api.call('getInspections', { warehouseCode: whCode, sloc: sloc || undefined, materialType: data.materialType });
                         if (listR.success && listR.inspections?.length) {
-                            // Find the newest inspection matching our serial number
                             const match = listR.inspections.reverse().find(i => i.serialNo === data.serialNo && i.peaNo === data.peaNo);
                             if (match) inspId = match.id;
                         }
-                    } catch (e) { console.warn('Could not resolve inspection ID for image upload:', e); }
+                    } catch (e) { console.warn('Could not resolve inspection ID for images:', e); }
                 }
                 if (inspId) {
                     const imgPayload = {
@@ -625,19 +636,22 @@ function setupFormHandlers() {
                     if (imgOverview && imgOverview.startsWith('data:image')) imgPayload.imageOverview = imgOverview;
                     if (imgNameplate && imgNameplate.startsWith('data:image')) imgPayload.imageNameplate = imgNameplate;
                     showUploadProgress();
-                    api.call('uploadImages', imgPayload).then(imgR => {
+                    try {
+                        const imgR = await api.call('uploadImages', imgPayload);
                         hideUploadProgress();
                         if (imgR.success) showToast('Photos uploaded ✓', 'success');
                         else showToast('Photo upload failed', 'error');
-                        loadList();
-                    }).catch(() => { hideUploadProgress(); showToast('Photo upload failed', 'error'); });
+                        // Refresh cache to get the image URLs
+                        dataCache.refresh();
+                    } catch {
+                        hideUploadProgress();
+                        showToast('Photo upload failed', 'error');
+                    }
                 } else {
                     showToast('Photos skipped — could not resolve ID', 'warning');
                 }
-            }
-        } catch (err) {
-            console.error('Save error:', err);
-            showToast('Save failed: ' + (err.message || 'Unknown error'), 'error');
+            };
+            doImageUpload(); // fire and forget
         }
     });
 }

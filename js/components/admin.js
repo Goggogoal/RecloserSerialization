@@ -2,7 +2,7 @@
 // PEA-AIMS Admin Component
 // ============================================================
 import { store } from '../store.js';
-import { api } from '../services/api.js';
+import { dataCache } from '../services/data-cache.js';
 import { CONFIG } from '../config.js';
 
 export function renderAdmin() {
@@ -47,7 +47,7 @@ export function renderAdmin() {
 }
 
 export async function initAdmin() {
-    const r = await api.call('getDashboardStats', { zone: 'ALL' });
+    const r = dataCache.getDashboardStats('ALL');
     if (!r.success) return;
     const ws = r.warehouseStats || [];
     // Group by zone

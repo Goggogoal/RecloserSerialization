@@ -3,6 +3,8 @@
 // ============================================================
 import { store } from '../store.js';
 import { api } from '../services/api.js';
+import { dataCache } from '../services/data-cache.js';
+import { writeQueue } from '../services/write-queue.js';
 import { auth } from '../services/auth.js';
 import { CONFIG } from '../config.js';
 
@@ -126,11 +128,8 @@ export async function initGhost() {
     const user = store.get('user');
     if (!user) return;
 
-    // Load master data if not cached
-    if (!(store.get('warehouses') || []).length) {
-        const r = await api.call('getMasterData');
-        if (r.success) store.update({ warehouses: r.warehouses, contracts: r.contracts, equipment: r.equipment, mb52: r.mb52 });
-    }
+    // Master data is already in the store from dataCache.loadAllData() at login
+    // No API call needed here
 
     // Populate warehouse dropdown (unique by code, filtered by zone)
     const whSelect = document.getElementById('ghostWarehouseSelect');
@@ -236,9 +235,9 @@ async function loadGhostList() {
     const activeTab = document.querySelector('.ghost-tab.active');
     const matType = activeTab?.dataset?.type || '';
     const list = document.getElementById('ghostList');
-    list.innerHTML = `<div class="loading-placeholder"><div class="spinner-large"></div></div>`;
 
-    const r = await api.call('getGhosts', {
+    // Read from local cache (instant, no API call)
+    const r = dataCache.getGhosts({
         warehouseCode: whCode || undefined,
         materialType: matType || undefined,
         sloc: slocVal || undefined
@@ -301,30 +300,36 @@ function ghostCardHTML(i, isManagerOrAdmin) {
     </div>`;
 }
 
-// ─── Approve / Reject / Revert Ghost ─────────────
+// ─── Approve / Reject / Revert Ghost (Optimistic) ──
 async function approveGhost(id) {
     if (!confirm('Approve this ghost item?')) return;
-    const r = await api.call('approveGhost', { id });
-    if (r.success) { showToast('Approved!', 'success'); loadGhostList(); } else showToast('Error', 'error');
+    dataCache.updateGhostStatus(id, 'Approved');
+    showToast('Approved!', 'success');
+    loadGhostList();
+    writeQueue.enqueue('approveGhost', { id });
 }
 
 async function rejectGhost(id) {
     const comment = prompt('Enter rejection comment:');
     if (comment === null) return;
-    const r = await api.call('rejectGhost', { id, comment: comment || 'Rejected' });
-    if (r.success) { showToast('Rejected', 'success'); loadGhostList(); } else showToast('Error', 'error');
+    dataCache.updateGhostStatus(id, 'Rejected', comment || 'Rejected');
+    showToast('Rejected', 'success');
+    loadGhostList();
+    writeQueue.enqueue('rejectGhost', { id, comment: comment || 'Rejected' });
 }
 
 async function revertGhost(id) {
     const comment = prompt('Enter revert comment:');
     if (comment === null) return;
-    const r = await api.call('revertGhost', { id, comment: comment || 'Reverted by admin' });
-    if (r.success) { showToast('Reverted to Inspected', 'success'); loadGhostList(); } else showToast('Error', 'error');
+    dataCache.updateGhostStatus(id, 'Inspected', comment || 'Reverted by admin');
+    showToast('Reverted to Inspected', 'success');
+    loadGhostList();
+    writeQueue.enqueue('revertGhost', { id, comment: comment || 'Reverted by admin' });
 }
 
 // ─── View ────────────────────────────────────────
 async function viewGhost(id) {
-    const r = await api.call('getGhostById', { id });
+    const r = dataCache.getGhostById(id);
     if (!r.success || !r.ghost) { showToast('Could not load ghost details', 'error'); return; }
     const i = r.ghost;
     const body = document.getElementById('ghostViewBody');
@@ -373,7 +378,7 @@ async function openGhostForm(editId = null) {
 
     if (editId) {
         document.getElementById('ghostFormTitle').innerHTML = '<i data-lucide="edit"></i> Edit Ghost Item';
-        const r = await api.call('getGhostById', { id: editId });
+        const r = dataCache.getGhostById(editId);
         if (r.success && r.ghost) {
             const g = r.ghost;
             document.getElementById('ghostWarehouse').value = g.warehouseCode || '';
@@ -465,23 +470,35 @@ function setupGhostFormHandlers() {
         const hasNewNameplate = npImg && npImg.startsWith('data:');
         const hasImages = hasNewOverview || hasNewNameplate;
 
-        const saveBtn = e.target.querySelector('[type="submit"]');
-        saveBtn.disabled = true;
-        saveBtn.innerHTML = '<div class="spinner"></div> Saving...';
+        // ─── Optimistic Update ─────────────────────────
+        // 1. Update local cache immediately
+        if (editId) {
+            dataCache.updateGhost(editId, data);
+        } else {
+            dataCache.addGhost(data);
+        }
 
-        try {
-            const r = editId
-                ? await api.call('updateGhost', { id: editId, updates: data })
-                : await api.call('submitGhost', data);
+        // 2. Close modal and reload list from cache (instant)
+        closeModal(ov);
+        showToast('Saved!', 'success');
+        loadGhostList();
 
-            if (!r.success) { showToast('Save failed: ' + (r.message || 'Unknown'), 'error'); saveBtn.disabled = false; saveBtn.innerHTML = '<i data-lucide="save"></i> Save'; return; }
+        // 3. Queue background write to server
+        const action = editId ? 'updateGhost' : 'submitGhost';
+        const payload = editId ? { id: editId, updates: data } : data;
+        writeQueue.enqueue(action, payload, {
+            onError: (entry, err) => {
+                showToast('Background save failed — will retry', 'error');
+            }
+        });
 
-            // Upload images
-            if (hasImages) {
-                let ghostId = editId || r.id;
+        // 4. Upload images in background
+        if (hasImages) {
+            const doImageUpload = async () => {
+                let ghostId = editId;
                 if (!ghostId) {
+                    await new Promise(resolve => setTimeout(resolve, 5000));
                     try {
-                        await new Promise(resolve => setTimeout(resolve, 2000));
                         const listR = await api.call('getGhosts', { warehouseCode: data.warehouseCode });
                         if (listR.success && listR.ghosts?.length) {
                             const match = listR.ghosts.reverse().find(g => g.serialNo === data.serialNo && g.peaNo === data.peaNo);
@@ -493,22 +510,19 @@ function setupGhostFormHandlers() {
                     const imgPayload = { id: ghostId, plant: data.warehouseCode, sloc: data.sloc, isEdit: !!editId };
                     if (hasNewOverview) imgPayload.imageOverview = ovImg;
                     if (hasNewNameplate) imgPayload.imageNameplate = npImg;
-                    await api.call('uploadGhostImages', imgPayload);
+                    try {
+                        await api.call('uploadGhostImages', imgPayload);
+                        showToast('Photos uploaded ✓', 'success');
+                        dataCache.refresh();
+                    } catch {
+                        showToast('Photo upload failed', 'error');
+                    }
                 } else {
                     showToast('Photos skipped — could not resolve ID', 'warning');
                 }
-            }
-
-            showToast('Saved!', 'success');
-            closeModal(ov);
-            loadGhostList();
-        } catch (err) {
-            console.error('Ghost save error:', err);
-            showToast('Save failed: ' + (err.message || 'Unknown'), 'error');
+            };
+            doImageUpload(); // fire and forget
         }
-        saveBtn.disabled = false;
-        saveBtn.innerHTML = '<i data-lucide="save"></i> Save';
-        if (window.lucide) lucide.createIcons();
     });
 }
 

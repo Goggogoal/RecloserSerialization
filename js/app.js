@@ -3,6 +3,8 @@
 // ============================================================
 import { store } from './store.js';
 import { auth } from './services/auth.js';
+import { dataCache } from './services/data-cache.js';
+import { writeQueue } from './services/write-queue.js';
 import { showPRPopup } from './components/pr-popup.js';
 import { renderNavbar, initNavbar } from './components/navbar.js';
 import { renderLogin, initLogin } from './components/login.js';
@@ -55,6 +57,13 @@ async function init() {
     const user = auth.getUser();
     if (user) {
         store.set('user', user);
+        // Load all data once (from localStorage cache or server)
+        const loaded = await dataCache.loadAllData();
+        if (!loaded) {
+            console.warn('[App] Data load failed — will retry on navigation');
+        }
+        // Process any writes that were queued in a previous session
+        writeQueue.processRemaining();
         const hash = window.location.hash.replace('#', '');
         store.set('currentView', hash && views[hash] ? hash : 'dashboard');
     } else {

@@ -12,6 +12,7 @@ class Store {
             equipment: [],        // [{ materialNo, equipType, equipGroup }]
             mb52: [],             // [{ materialCode, whName, whCode, batch, qty }]
             inspections: [],      // [{ ...inspection fields }]
+            ghosts: [],           // [{ ...ghost item fields }]
             selectedWarehouse: null,
             selectedSLoc: null,
             selectedMaterialType: null,

@@ -3,6 +3,8 @@
 // ============================================================
 import { store } from '../store.js';
 import { api } from '../services/api.js';
+import { dataCache } from '../services/data-cache.js';
+import { writeQueue } from '../services/write-queue.js';
 import { auth } from '../services/auth.js';
 import { CONFIG } from '../config.js';
 
@@ -58,10 +60,8 @@ export function renderManager() {
 export async function initManager() {
     const user = store.get('user');
     if (!user) return;
-    if (!(store.get('warehouses') || []).length) {
-        const r = await api.call('getMasterData');
-        if (r.success) store.update({ warehouses: r.warehouses, contracts: r.contracts, equipment: r.equipment, mb52: r.mb52 });
-    }
+    // Master data is already in the store from dataCache.loadAllData() at login
+    // No API call needed here
     const sel = document.getElementById('mgrWarehouseSelect');
     const whs = store.get('warehouses') || [];
     const seen = new Set();
@@ -84,10 +84,16 @@ async function loadReviews() {
     const whCode = document.getElementById('mgrWarehouseSelect')?.value;
     const status = document.getElementById('mgrStatusFilter')?.value;
     const list = document.getElementById('reviewList');
-    list.innerHTML = `<div class="loading-placeholder"><div class="spinner-large"></div></div>`;
-    const r = await api.call('getInspections', { warehouseCode: whCode || undefined, zone: user.zone, status: status || undefined });
-    if (!r.success) { list.innerHTML = `<div class="empty-state error"><p>Error loading</p></div>`; return; }
-    const items = r.inspections;
+
+    // Read from local cache (instant, no API call)
+    const r = dataCache.getInspections({ warehouseCode: whCode || undefined, status: status || undefined });
+    // Also filter by zone if not admin
+    let items = r.inspections || [];
+    if (user.zone && user.zone !== 'ALL') {
+        const zoneCodes = new Set((store.get('warehouses') || []).filter(w => w.zone === user.zone).map(w => w.code));
+        items = items.filter(i => zoneCodes.has(i.warehouseCode));
+    }
+
     if (!items.length) { list.innerHTML = `<div class="empty-state"><i data-lucide="inbox"></i><p>No items found</p></div>`; if (window.lucide) lucide.createIcons(); return; }
     list.innerHTML = `<div class="review-count">${items.length} inspection(s)</div><div class="review-cards">${items.map(reviewCard).join('')}</div>`;
     if (window.lucide) lucide.createIcons();
@@ -132,8 +138,10 @@ function reviewCard(i) {
 
 async function approveItem(id) {
     if (!confirm('Are you sure you want to approve this inspection?')) return;
-    const r = await api.call('approveInspection', { id });
-    if (r.success) { showToast('Approved!', 'success'); loadReviews(); } else showToast('Error', 'error');
+    dataCache.updateInspectionStatus(id, 'Approved');
+    showToast('Approved!', 'success');
+    loadReviews();
+    writeQueue.enqueue('approveInspection', { id });
 }
 
 async function rejectItem(id) {
@@ -145,7 +153,7 @@ async function revertItem(id) {
 }
 
 async function viewItem(id) {
-    const r = await api.call('getInspectionById', { id });
+    const r = dataCache.getInspectionById(id);
     if (!r.success || !r.inspection) { showToast('Could not load details', 'error'); return; }
     const i = r.inspection;
     const body = document.getElementById('viewBody');
@@ -205,12 +213,21 @@ function setupCommentModal() {
         const comment = document.getElementById('mgrComment').value.trim();
         if (_isReject && !confirm('Are you sure you want to reject this inspection?')) return;
         if (_isRevert && !confirm('Revert this approved item back to Inspected?')) return;
-        let r;
-        if (_isReject) { r = await api.call('rejectInspection', { id: _commentId, comment: comment || 'Rejected' }); }
-        else if (_isRevert) { r = await api.call('revertInspection', { id: _commentId, comment: comment || 'Reverted by admin' }); }
-        else { r = await api.call('updateInspection', { id: _commentId, updates: { managerComment: comment } }); }
-        if (r.success) { closeModal(ov); showToast(_isReject ? 'Rejected' : _isRevert ? 'Reverted to Inspected' : 'Comment saved', 'success'); loadReviews(); }
-        else showToast('Error', 'error');
+
+        // Optimistic update + write queue
+        if (_isReject) {
+            dataCache.updateInspectionStatus(_commentId, 'Rejected', comment || 'Rejected');
+            writeQueue.enqueue('rejectInspection', { id: _commentId, comment: comment || 'Rejected' });
+        } else if (_isRevert) {
+            dataCache.updateInspectionStatus(_commentId, 'Inspected', comment || 'Reverted by admin');
+            writeQueue.enqueue('revertInspection', { id: _commentId, comment: comment || 'Reverted by admin' });
+        } else {
+            dataCache.updateInspection(_commentId, { managerComment: comment });
+            writeQueue.enqueue('updateInspection', { id: _commentId, updates: { managerComment: comment } });
+        }
+        closeModal(ov);
+        showToast(_isReject ? 'Rejected' : _isRevert ? 'Reverted to Inspected' : 'Comment saved', 'success');
+        loadReviews();
     });
 }
 

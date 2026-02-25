@@ -4,7 +4,7 @@
 // ============================================================
 
 import { store } from '../store.js';
-import { api } from '../services/api.js';
+import { dataCache } from '../services/data-cache.js';
 import { CONFIG } from '../config.js';
 
 export function renderSLoc() {
@@ -30,7 +30,7 @@ export async function initSLoc() {
 
     document.getElementById('slocBackBtn')?.addEventListener('click', () => store.set('currentView', 'dashboard'));
 
-    const result = await api.call('getSLocStats', { warehouseCode: wh.code });
+    const result = dataCache.getSLocStats(wh.code);
     if (!result.success) {
         document.getElementById('slocGrid').innerHTML = `<div class="empty-state"><p>Error loading SLoc data</p></div>`;
         return;

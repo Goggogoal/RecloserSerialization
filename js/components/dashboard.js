@@ -3,7 +3,7 @@
 // ============================================================
 
 import { store } from '../store.js';
-import { api } from '../services/api.js';
+import { dataCache } from '../services/data-cache.js';
 import { CONFIG } from '../config.js';
 
 export function renderDashboard() {
@@ -53,20 +53,21 @@ export async function initDashboard() {
     const zoneLabel = document.getElementById('dashboardZoneLabel');
     if (zoneLabel) zoneLabel.textContent = user.zone === 'ALL' ? 'All Zones Overview' : `Zone ${user.zone} Overview`;
 
+    // Compute stats from local cache (instant, no API call)
     try {
-        const result = await api.call('getDashboardStats', { zone: user.zone });
+        const result = dataCache.getDashboardStats(user.zone);
         if (result.success) {
             updateStats(result);
             _warehouseStats = result.warehouseStats;
             renderWarehouseCards(_warehouseStats);
         }
     } catch (err) {
-        console.error('Dashboard load error:', err);
+        console.error('Dashboard stats error:', err);
     }
 
-    // Load Ghost stats
+    // Ghost stats from local cache (instant)
     try {
-        const gResult = await api.call('getGhostStats', { zone: user.zone });
+        const gResult = dataCache.getGhostStats(user.zone);
         if (gResult.success) {
             animateCounter('statGhostTotal', gResult.total);
             animateCounter('statGhostInspected', gResult.inspected);
@@ -74,7 +75,7 @@ export async function initDashboard() {
             renderGhostWarehouseCards(gResult.warehouseStats || []);
         }
     } catch (err) {
-        console.error('Ghost stats load error:', err);
+        console.error('Ghost stats error:', err);
         const ghostGrid = document.getElementById('ghostWarehouseGrid');
         if (ghostGrid) ghostGrid.innerHTML = `<div class="empty-state"><p>No ghost items yet</p></div>`;
     }
